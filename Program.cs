@@ -37,6 +37,8 @@ namespace BetterClock
                 return 0;
             }
 
+            Updater.CleanUp();
+
             var app = new Application();
             app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             app.Exit += delegate
@@ -115,8 +117,16 @@ namespace BetterClock
                 {
                     UpdateChecker.CheckAsync(delegate(UpdateResult r)
                     {
-                        if (r.UpdateAvailable && AppHost.Tray != null)
+                        if (!r.UpdateAvailable || AppHost.Tray == null) return;
+                        if (AppHost.Settings.AutoInstallUpdates && !string.IsNullOrEmpty(r.DownloadUrl))
+                        {
+                            AppHost.Tray.ShowBalloon("Better Clock update", "Installing version " + r.Latest + "...");
+                            Updater.Install(r, null, delegate(string err) { AppHost.Tray.ShowBalloon("Better Clock update", err); });
+                        }
+                        else
+                        {
                             AppHost.Tray.ShowBalloon("Better Clock update", "Version " + r.Latest + " is available. Right-click the tray icon > Check for updates.");
+                        }
                     });
                 }
 

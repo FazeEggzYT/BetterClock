@@ -165,6 +165,7 @@ namespace BetterClock
         public bool ShowStartupMessage = true;
         public bool OpenSettingsOnLaunch = true;
         public bool CheckForUpdates = true;
+        public bool AutoInstallUpdates = false;   // install new versions by itself when Better Clock starts
         public string LastSeenVersion = "";
 
         // ================= Per-game looks =================

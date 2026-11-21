@@ -14,6 +14,7 @@ namespace BetterClock
         public bool UpdateAvailable;
         public string Latest = "";
         public string Url = "";
+        public string DownloadUrl = "";   // direct link to BetterClock.exe on the release
         public string Error = "";
     }
 
@@ -68,6 +69,8 @@ namespace BetterClock
 
                 Match tag = Regex.Match(json, "\"tag_name\"\\s*:\\s*\"([^\"]+)\"");
                 Match url = Regex.Match(json, "\"html_url\"\\s*:\\s*\"(https://github.com/[^\"]+/releases/tag/[^\"]+)\"");
+                Match exe = Regex.Match(json, "\"browser_download_url\"\\s*:\\s*\"(https://[^\"]*/BetterClock\\.exe)\"");
+                if (exe.Success) result.DownloadUrl = exe.Groups[1].Value;
                 if (!tag.Success)
                 {
                     result.Error = "GitHub did not return a release.";

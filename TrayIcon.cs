@@ -33,13 +33,21 @@ namespace BetterClock
                 if (!UpdateChecker.Configured) { ShowBalloon("Better Clock", "No GitHub repository is set (edit repo.txt and build again)."); return; }
                 UpdateChecker.CheckAsync(delegate(UpdateResult r)
                 {
-                    if (!r.Ok) ShowBalloon("Better Clock", r.Error);
-                    else if (r.UpdateAvailable)
+                    if (!r.Ok) { ShowBalloon("Better Clock", r.Error); return; }
+                    if (!r.UpdateAvailable) { ShowBalloon("Better Clock", "You are up to date (v" + AppInfo.Version + ")."); return; }
+
+                    var answer = System.Windows.MessageBox.Show(
+                        "Version " + r.Latest + " is available (you have " + AppInfo.Version + ").\n\nUpdate now? Better Clock will restart.",
+                        "Better Clock update", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Question);
+                    if (answer != System.Windows.MessageBoxResult.Yes) return;
+
+                    if (string.IsNullOrEmpty(r.DownloadUrl))
                     {
-                        ShowBalloon("Better Clock update", "Version " + r.Latest + " is available. Opening the download page...");
                         try { System.Diagnostics.Process.Start(r.Url); } catch (Exception) { }
+                        return;
                     }
-                    else ShowBalloon("Better Clock", "You are up to date (v" + AppInfo.Version + ").");
+                    ShowBalloon("Better Clock update", "Downloading version " + r.Latest + "...");
+                    Updater.Install(r, null, delegate(string err) { ShowBalloon("Better Clock update", err); });
                 });
             }));
 

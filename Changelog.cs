@@ -19,6 +19,20 @@ namespace BetterClock
 
             list.Add(new ChangelogEntry
             {
+                Version = "1.3.0",
+                Date = "21 Nov 2026",
+                Title = "Updates inside the app",
+                Items = new string[]
+                {
+                    "Update from inside Better Clock: it downloads the new version, installs it and restarts itself.",
+                    "Tray menu > Check for updates asks \"Update now?\". Settings > Updates has an Update now button.",
+                    "Optional: install new versions automatically when Better Clock starts.",
+                    "Your settings are kept across updates."
+                }
+            });
+
+            list.Add(new ChangelogEntry
+            {
                 Version = "1.2.0",
                 Date = "21 Nov 2026",
                 Title = "Number styles, pictures and extra text",

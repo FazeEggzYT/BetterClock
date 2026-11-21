@@ -19,7 +19,8 @@ You do NOT need to build the EXE yourself. GitHub builds it on a Windows machine
 **Actions > Build and release > Run workflow**. When it finishes, open the run and download the `BetterClock` file at the bottom.
 
 ## Updates
-The app checks your GitHub releases and tells you when a newer version exists (tray menu > Check for updates, or Settings > Updates).
+The app checks your GitHub releases. Tray menu > Check for updates (or Settings > Updates > Update now) downloads the new EXE from the latest release, installs it and restarts.
+The release must be the LATEST (not a pre-release) and must have `BetterClock.exe` attached (the GitHub build does that).
 GitHub builds set the repository name inside the EXE automatically.
 If you build with `build.bat` on your own PC, put `yourname/BetterClock` in `repo.txt` first.
 

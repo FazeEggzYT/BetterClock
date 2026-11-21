@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.3.0
+- Update from inside the app: download, install and restart by itself (tray menu, Settings > Updates, or automatically at start).
+
 ## v1.2.0
 - Number styles: Normal, Flip-clock, LED seven-segment, Retro terminal, Analog clock face (clock only).
 - Blinking colon option.

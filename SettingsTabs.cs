@@ -741,21 +741,40 @@ namespace BetterClock
             // ---- updates ----
             var upd = new AnimatedSection("Updates", true);
             AddCheck(upd.Body, S, "Check GitHub for a new version when Better Clock starts", "CheckForUpdates", null);
+            AddCheck(upd.Body, S, "Install new versions automatically (Better Clock restarts itself)", "AutoInstallUpdates", null);
             var updResult = Hint(UpdateChecker.Configured
-                ? "Checking uses " + AppInfo.Repo + " on GitHub. It only tells you - it never changes files by itself."
+                ? "Updates come from " + AppInfo.Repo + " on GitHub. Your settings are kept."
                 : "No GitHub repository is set yet. Put yourname/BetterClock into repo.txt and build again (a GitHub Actions build does this for you).");
             var updButtons = new WrapPanel();
+            var installBtn = MakeButton("Update now", delegate { });
+            installBtn.Visibility = Visibility.Collapsed;
+            UpdateResult found = null;
+            installBtn.Click += delegate
+            {
+                if (found == null) return;
+                installBtn.IsEnabled = false;
+                Updater.Install(found,
+                    delegate(string s) { updResult.Text = s; },
+                    delegate(string err) { updResult.Text = err; installBtn.IsEnabled = true; });
+            };
             updButtons.Children.Add(MakeButton("Check now", delegate
             {
                 if (!UpdateChecker.Configured) return;
                 updResult.Text = "Checking...";
+                installBtn.Visibility = Visibility.Collapsed;
                 UpdateChecker.CheckAsync(delegate(UpdateResult r)
                 {
-                    if (!r.Ok) updResult.Text = r.Error;
-                    else if (r.UpdateAvailable) updResult.Text = "Version " + r.Latest + " is available (you have " + AppInfo.Version + ").";
+                    if (!r.Ok) { updResult.Text = r.Error; return; }
+                    if (r.UpdateAvailable)
+                    {
+                        found = r;
+                        updResult.Text = "Version " + r.Latest + " is available (you have " + AppInfo.Version + ").";
+                        installBtn.Visibility = string.IsNullOrEmpty(r.DownloadUrl) ? Visibility.Collapsed : Visibility.Visible;
+                    }
                     else updResult.Text = "You are up to date (v" + AppInfo.Version + ").";
                 });
             }));
+            updButtons.Children.Add(installBtn);
             updButtons.Children.Add(MakeButton("Open releases page", delegate
             {
                 if (!UpdateChecker.Configured) return;
