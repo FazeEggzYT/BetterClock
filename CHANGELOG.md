@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.3.1
+- Fixed timer not disappearing.
+
 ## v1.3.0
 - Update from inside the app: download, install and restart by itself (tray menu, Settings > Updates, or automatically at start).
 

@@ -19,6 +19,17 @@ namespace BetterClock
 
             list.Add(new ChangelogEntry
             {
+                Version = "1.3.1",
+                Date = "21 Nov 2026",
+                Title = "Bug fix",
+                Items = new string[]
+                {
+                    "Fixed timer not disappearing."
+                }
+            });
+
+            list.Add(new ChangelogEntry
+            {
                 Version = "1.3.0",
                 Date = "21 Nov 2026",
                 Title = "Updates inside the app",
