@@ -10,6 +10,9 @@ namespace BetterClock
         private readonly List<OverlayWindow> _windows = new List<OverlayWindow>();
         private string _text = "00:00";
         private OverlayRole _role = OverlayRole.Normal;
+        private double _progress = -1;
+        private string _caption = null;
+        private bool _pulse;
         private bool _wanted;
         private bool _move;
 
@@ -24,6 +27,9 @@ namespace BetterClock
             var w = new OverlayWindow(_mode);
             w.SetText(_text);
             w.SetRole(_role);
+            w.SetProgress(_progress);
+            w.SetCaption(_caption);
+            w.SetPulse(_pulse);
             w.SetMoveMode(_move);
             return w;
         }
@@ -40,6 +46,24 @@ namespace BetterClock
         {
             _role = role;
             foreach (OverlayWindow w in _windows) w.SetRole(role);
+        }
+
+        public void SetProgress(double fraction)
+        {
+            _progress = fraction;
+            foreach (OverlayWindow w in _windows) w.SetProgress(fraction);
+        }
+
+        public void SetCaption(string text)
+        {
+            _caption = text;
+            foreach (OverlayWindow w in _windows) w.SetCaption(text);
+        }
+
+        public void SetPulse(bool on)
+        {
+            _pulse = on;
+            foreach (OverlayWindow w in _windows) w.SetPulse(on);
         }
 
         public void SetMoveMode(bool on)

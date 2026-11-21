@@ -68,6 +68,10 @@ namespace BetterClock
             else if (mode == OverlayMode.Timer)
             {
                 AddCheck(beh.Body, S, "Keep counting while the timer is hidden", "TimerKeepRunningHidden", null);
+                AddCheck(beh.Body, S, "Target: turn green when this time is reached", "TimerTargetEnabled", null);
+                AddNumberBox(beh.Body, S, "Target time", "TimerTargetSeconds", 1, 359999, "seconds");
+                AddCheck(beh.Body, S, "Chime when the target is reached", "TimerTargetBeep", null);
+                beh.Body.Children.Add(Hint("Target time is in seconds (300 = 5 minutes). With a progress ring or bar on, it fills up towards the target."));
                 beh.Body.Children.Add(Hint("Start / stop and Reset keys are in the Keys tab. The timer counts up in seconds."));
             }
             else
@@ -82,6 +86,34 @@ namespace BetterClock
                 AddSlider(beh.Body, S, "Repeat sound", "CountdownSoundRepeat", 1, 10, 1, " x", null);
             }
             page.Children.Add(beh);
+
+            // ---- countdown extras ----
+            if (mode == OverlayMode.Countdown)
+            {
+                AnimatedSection plan = new AnimatedSection("Chains, Pomodoro and warnings", false);
+                AddEnumCombo(plan.Body, S, "Countdown type", "CountdownPlan", typeof(CountdownPlanKind), null);
+                plan.Body.Children.Add(Hint("Single = the plain countdown above. Chain = the steps below, one after another. Pomodoro = work and break cycles."));
+                AddText(plan.Body, S, "Chain steps", "CountdownChain", 380);
+                plan.Body.Children.Add(Hint("Time, then a name, separated by ; for example: 25:00 Work;5:00 Break;90 Stretch. A plain number means minutes."));
+                AddCheck(plan.Body, S, "Start the chain again when it ends", "CountdownChainLoop", null);
+                AddNumberBox(plan.Body, S, "Pomodoro: work", "PomoWorkMin", 1, 180, "minutes");
+                AddNumberBox(plan.Body, S, "Pomodoro: short break", "PomoShortMin", 1, 60, "minutes");
+                AddNumberBox(plan.Body, S, "Pomodoro: long break", "PomoLongMin", 1, 120, "minutes");
+                AddNumberBox(plan.Body, S, "Pomodoro: rounds", "PomoRounds", 1, 12, "rounds");
+                plan.Body.Children.Add(Hint("Pomodoro repeats forever: work, short break, work... and a long break after the last round."));
+                AddCheck(plan.Body, S, "Keep counting up after zero (overtime, +00:05)", "CountdownOvertime", null);
+                AddCheck(plan.Body, S, "Colour changes as time runs low", "CountdownLowColors", null);
+                AddNumberBox(plan.Body, S, "Turns amber at", "CountdownAmberAt", 1, 3599, "seconds left");
+                AddNumberBox(plan.Body, S, "Turns red at", "CountdownRedAt", 1, 3599, "seconds left");
+                AddCheck(plan.Body, S, "Beep as the end gets close", "CountdownWarnBeeps", null);
+                AddText(plan.Body, S, "Beep at (seconds left)", "CountdownWarnList", 220);
+                var testRow = new WrapPanel();
+                testRow.Margin = new Thickness(0, 6, 0, 0);
+                testRow.Children.Add(MakeButton("Test warning beep", delegate { SoundService.PlayWarning(); }));
+                testRow.Children.Add(MakeButton("Test step chime", delegate { SoundService.PlayChime(); }));
+                plan.Body.Children.Add(testRow);
+                page.Children.Add(plan);
+            }
 
             // ---- position ----
             AnimatedSection pos = new AnimatedSection("Position and monitor", true);
@@ -114,6 +146,9 @@ namespace BetterClock
                 AddColor(txt.Body, st, "While paused", "PausedColor", null);
             }
             if (mode == OverlayMode.Countdown) AddColor(txt.Body, st, "At zero", "FinishedColor", null);
+            if (mode == OverlayMode.Countdown) AddColor(txt.Body, st, "Running low (amber)", "WarnColor", null);
+            if (mode == OverlayMode.Countdown) AddColor(txt.Body, st, "Almost out (red)", "DangerColor", null);
+            if (mode == OverlayMode.Timer) AddColor(txt.Body, st, "Target reached", "TargetColor", null);
             page.Children.Add(txt);
 
             // ---- number style ----
@@ -187,6 +222,26 @@ namespace BetterClock
             AddEnumCombo(size.Body, st, "When it appears", "ShowAnimation", typeof(ShowAnimation), null);
             AddSlider(size.Body, st, "Fade time", "FadeMs", 0, 1000, 20, " ms", null);
             page.Children.Add(size);
+
+            // ---- progress ring / bar and pulse ----
+            if (mode != OverlayMode.Clock)
+            {
+                AnimatedSection prog = new AnimatedSection(mode == OverlayMode.Countdown ? "Progress ring / bar and pulse" : "Progress ring / bar", false);
+                AddEnumCombo(prog.Body, st, "Show progress as", "ProgressStyle", typeof(ProgressStyle), null);
+                AddSlider(prog.Body, st, "Thickness", "ProgressThickness", 2, 30, 1, " px", null);
+                if (mode == OverlayMode.Countdown)
+                {
+                    prog.Body.Children.Add(Hint("Bar = a thin bar under the numbers. Ring = a circle beside them. Both empty as time runs out."));
+                    AddSlider(prog.Body, st, "Glow pulses in the last", "PulseSeconds", 0, 60, 1, " s", null);
+                    AddColor(prog.Body, st, "Pulse colour", "PulseColor", null);
+                    prog.Body.Children.Add(Hint("0 turns the pulse off."));
+                }
+                else
+                {
+                    prog.Body.Children.Add(Hint("Needs a timer target (Behaviour section). The bar or ring fills up towards the target."));
+                }
+                page.Children.Add(prog);
+            }
         }
 
         private void RefillMode(OverlayMode mode)

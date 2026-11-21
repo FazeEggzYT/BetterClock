@@ -383,6 +383,14 @@ namespace BetterClock
             return b;
         }
 
+        // How full the progress ring / bar looks in the preview.
+        private double PreviewProgress(OverlayMode m)
+        {
+            if (m == OverlayMode.Countdown) return _previewMode == PreviewMode.Finished ? 0 : 0.65;
+            if (m == OverlayMode.Timer && S.TimerTargetEnabled) return 0.4;
+            return -1;
+        }
+
         private void UpdatePreview()
         {
             if (_zoomView == null || _mapViews.Count == 0) return;
@@ -397,6 +405,7 @@ namespace BetterClock
             _zoomView.Kind = focus;
             _zoomView.Apply(zs);
             _zoomView.Margin = new Thickness(_zoomView.OuterMargin);
+            _zoomView.SetProgress(PreviewProgress(focus));
             switch (_previewMode)
             {
                 case PreviewMode.Clock: _zoomView.SetText(clockText); _zoomView.SetRole(OverlayRole.Normal); break;
@@ -425,6 +434,7 @@ namespace BetterClock
                     v.Margin = new Thickness(ColorUtil.Clamp(st.CustomX, 0, 8000), ColorUtil.Clamp(st.CustomY, 0, 8000), 0, 0);
                 }
                 v.Opacity = kv.Key == focus ? 1.0 : 0.35;
+                v.SetProgress(PreviewProgress(kv.Key));
 
                 if (kv.Key == OverlayMode.Clock) { v.SetText(clockText); v.SetRole(OverlayRole.Normal); }
                 else if (kv.Key == OverlayMode.Timer)

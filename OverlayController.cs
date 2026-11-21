@@ -1,5 +1,6 @@
 // The brain: decides what the overlay shows (Clock, Timer or Countdown) and what the keys do.
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Windows.Threading;
@@ -25,6 +26,17 @@ namespace BetterClock
         private bool _timerPausedByHide;
         private bool _countdownPausedByHide;
         private bool _countdownFinished;
+
+        // chained countdowns / Pomodoro
+        private List<PlanStep> _steps;       // null = one plain countdown
+        private string _planKey = null;
+        private int _step;
+
+        // warnings and timer target
+        private int _lastWarn = -1;
+        private string _warnKey = null;
+        private readonly List<int> _warnSet = new List<int>();
+        private bool _targetReached;
 
         public OverlayController()
         {
@@ -69,7 +81,7 @@ namespace BetterClock
                 _last = OverlayMode.Countdown;
                 _countdownPausedByHide = false;
                 if (_countdownFinished) ResetCountdown();
-                if (S.CountdownTotalSeconds < 1) return;
+                if (CurrentTotal() < 1) return;
 
                 if (_countdown.IsRunning) _countdown.Stop(); else _countdown.Start();
                 SoundService.Stop();
@@ -168,21 +180,114 @@ namespace BetterClock
             _countdown.Reset();
             _countdownFinished = false;
             _countdownPausedByHide = false;
+            _step = 0;
+            _lastWarn = -1;
+        }
+
+        // Rebuilds the list of steps when the plan settings change.
+        private void SyncPlan()
+        {
+            string key = CountdownPlan.Key(S);
+            if (key == _planKey) return;
+            _planKey = key;
+            _steps = CountdownPlan.Build(S);
+            if (_steps == null || _step >= _steps.Count) _step = 0;
+        }
+
+        // Length of the countdown (or of the current step) in seconds.
+        private int CurrentTotal()
+        {
+            SyncPlan();
+            return _steps != null ? _steps[_step].Seconds : S.CountdownTotalSeconds;
         }
 
         private double CountdownRemainingSeconds()
         {
-            double left = S.CountdownTotalSeconds - _countdown.Elapsed.TotalSeconds;
+            double left = CurrentTotal() - _countdown.Elapsed.TotalSeconds;
             return left < 0 ? 0 : left;
+        }
+
+        // Moves a chained countdown on to its next step. False = there is no next step (it is finished).
+        private bool AdvanceStep()
+        {
+            if (_steps == null) return false;
+            int next = _step + 1;
+            if (next >= _steps.Count)
+            {
+                if (!CountdownPlan.Loops(S)) return false;
+                next = 0;
+            }
+            _step = next;
+            _countdown.Reset();
+            _countdown.Start();
+            _lastWarn = -1;
+            SoundService.PlayChime();
+            return true;
+        }
+
+        private bool WarnAt(int seconds)
+        {
+            string text = S.CountdownWarnList ?? "";
+            if (text != _warnKey)
+            {
+                _warnKey = text;
+                _warnSet.Clear();
+                foreach (string part in text.Split(new char[] { ',', ';', ' ' }))
+                {
+                    int v;
+                    if (int.TryParse(part.Trim(), out v) && v > 0) _warnSet.Add(v);
+                }
+            }
+            return _warnSet.Contains(seconds);
+        }
+
+        private void CheckWarnings()
+        {
+            if (!S.CountdownWarnBeeps || !_countdown.IsRunning || _countdownFinished) return;
+            int whole = (int)Math.Ceiling(CountdownRemainingSeconds());
+            if (whole == _lastWarn) return;
+            _lastWarn = whole;
+            if (whole < 1 || whole >= CurrentTotal()) return;
+            if (WarnAt(whole)) SoundService.PlayWarning();
+        }
+
+        private void CheckTarget()
+        {
+            if (!S.TimerTargetEnabled) { _targetReached = false; return; }
+            bool reached = _timer.Elapsed.TotalSeconds >= S.TimerTargetSeconds;
+            if (reached && !_targetReached)
+            {
+                _targetReached = true;
+                if (S.TimerTargetBeep) SoundService.PlayChime();
+            }
+            else if (!reached)
+            {
+                _targetReached = false;
+            }
+        }
+
+        // Green while there is plenty of time, amber then red as it runs low.
+        private OverlayRole RunningRole(double remaining)
+        {
+            if (S.CountdownLowColors)
+            {
+                double whole = Math.Ceiling(remaining);
+                if (whole <= S.CountdownRedAt) return OverlayRole.Danger;
+                if (whole <= S.CountdownAmberAt) return OverlayRole.Warning;
+            }
+            return OverlayRole.Running;
         }
 
         private void OnTick(object sender, EventArgs e)
         {
             // The countdown can reach zero even while its overlay is hidden.
-            if (_countdown.IsRunning && CountdownRemainingSeconds() <= 0)
+            SyncPlan();
+            if (_countdown.IsRunning && !_countdownFinished && CountdownRemainingSeconds() <= 0)
             {
-                FinishCountdown();
+                if (!AdvanceStep()) FinishCountdown();
             }
+            CheckWarnings();
+            CheckTarget();
 
             if (IsVisible(OverlayMode.Clock) && !AppHost.MoveMode && !S.ClockHoldOpen && DateTime.Now >= _clockDeadline)
             {
@@ -193,7 +298,7 @@ namespace BetterClock
 
         private void FinishCountdown()
         {
-            _countdown.Stop();
+            if (!S.CountdownOvertime) _countdown.Stop();   // with overtime it keeps counting up
             _countdownFinished = true;
             SoundService.PlayCountdownAlarm(S, false);
 
@@ -215,16 +320,26 @@ namespace BetterClock
             o = AppHost.GetOverlay(OverlayMode.Timer);
             if (o != null && o.IsShown)
             {
-                o.SetText(FormatTime((int)Math.Floor(_timer.Elapsed.TotalSeconds)));
-                if (_timer.IsRunning) o.SetRole(OverlayRole.Running);
-                else if (_timer.Elapsed.TotalSeconds >= 1) o.SetRole(OverlayRole.Paused);
+                double el = _timer.Elapsed.TotalSeconds;
+                o.SetText(FormatTime((int)Math.Floor(el)));
+                if (S.TimerTargetEnabled && el >= S.TimerTargetSeconds) o.SetRole(OverlayRole.Target);
+                else if (_timer.IsRunning) o.SetRole(OverlayRole.Running);
+                else if (el >= 1) o.SetRole(OverlayRole.Paused);
                 else o.SetRole(OverlayRole.Normal);
+                o.SetProgress(S.TimerTargetEnabled && S.TimerTargetSeconds > 0 ? el / S.TimerTargetSeconds : -1);
             }
 
             o = AppHost.GetOverlay(OverlayMode.Countdown);
             if (o != null && o.IsShown)
             {
-                o.SetText(FormatTime((int)Math.Ceiling(CountdownRemainingSeconds())));
+                int total = CurrentTotal();
+                double rem = CountdownRemainingSeconds();
+                if (_countdownFinished && S.CountdownOvertime)
+                    o.SetText("+" + FormatTime((int)Math.Floor(_countdown.Elapsed.TotalSeconds - total)));
+                else
+                    o.SetText(FormatTime((int)Math.Ceiling(rem)));
+                o.SetCaption(_steps != null ? _steps[_step].Name : null);
+
                 if (_countdownFinished)
                 {
                     bool on = true;
@@ -235,9 +350,14 @@ namespace BetterClock
                     }
                     o.SetRole(on ? OverlayRole.Finished : OverlayRole.Normal);
                 }
-                else if (_countdown.IsRunning) o.SetRole(OverlayRole.Running);
+                else if (_countdown.IsRunning) o.SetRole(RunningRole(rem));
                 else if (_countdown.Elapsed.TotalSeconds >= 1) o.SetRole(OverlayRole.Paused);
                 else o.SetRole(OverlayRole.Normal);
+
+                o.SetProgress(_countdownFinished ? 0 : (total > 0 ? rem / total : 0));
+                bool pulse = _countdown.IsRunning && !_countdownFinished
+                    && S.Countdown.PulseSeconds > 0 && Math.Ceiling(rem) <= S.Countdown.PulseSeconds;
+                o.SetPulse(pulse);
             }
         }
 

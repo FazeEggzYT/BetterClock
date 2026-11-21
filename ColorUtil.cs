@@ -46,6 +46,13 @@ namespace BetterClock
             return Color.FromArgb((byte)Math.Round(255.0 * percent / 100.0), c.R, c.G, c.B);
         }
 
+        public static double Clamp(double v, double min, double max)
+        {
+            if (v < min) return min;
+            if (v > max) return max;
+            return v;
+        }
+
         public static int Clamp(int v, int min, int max)
         {
             if (v < min) return min;

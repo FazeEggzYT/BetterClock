@@ -128,6 +128,9 @@ namespace BetterClock
 
         public void SetText(string text) { _view.SetText(text); }
         public void SetRole(OverlayRole role) { _view.SetRole(role); }
+        public void SetProgress(double fraction) { _view.SetProgress(fraction); }
+        public void SetCaption(string text) { _view.SetCaption(text); }
+        public void SetPulse(bool on) { _view.SetPulse(on); }
 
         // True from the moment we were asked to show until we were asked to hide.
         public bool IsShown

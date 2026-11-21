@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.4.0
+- New: progress ring or bar for the countdown and the timer target.
+- New: countdown turns amber, then red, as time runs low.
+- New: glowing pulse in the last 10 seconds of a countdown.
+- New: timer target (turns green and chimes when reached).
+- New: overtime (keeps counting up after zero).
+- New: chained countdowns with step names.
+- New: Pomodoro mode.
+- New: warning beeps at 10, 5, 3, 2, 1 seconds left.
+- Fixed the Update now button not showing when a new version is available.
+
 ## v1.3.2
 - Fixed the Update now button not showing when a new version is available.
 

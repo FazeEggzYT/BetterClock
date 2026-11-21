@@ -18,7 +18,10 @@ namespace BetterClock
         Normal,
         Running,
         Paused,
-        Finished
+        Finished,
+        Warning,   // countdown running low
+        Danger,    // countdown almost out
+        Target     // timer reached its target
     }
 
     public class OverlayView : Border
@@ -42,6 +45,17 @@ namespace BetterClock
         private string _shown = null;
         private Brush _fg = Brushes.White;
         private readonly Grid _stage = new Grid();
+
+        // progress ring / bar, caption, glow pulse
+        private readonly Grid _ring = new Grid();
+        private readonly System.Windows.Shapes.Ellipse _ringTrack = new System.Windows.Shapes.Ellipse();
+        private readonly System.Windows.Shapes.Path _ringArc = new System.Windows.Shapes.Path();
+        private readonly Grid _bar = new Grid();
+        private readonly Border _barTrack = new Border();
+        private readonly Border _barFill = new Border();
+        private double _progress = -1;       // -1 = none, otherwise 0..1 (how much of the ring / bar is filled)
+        private string _caption = null;      // replaces "Text above" while set (chain step names)
+        private bool _pulse;
 
         // Which overlay this is (the analog face only makes sense for the clock).
         public OverlayMode Kind = OverlayMode.Clock;
@@ -75,16 +89,34 @@ namespace BetterClock
             _stage.Children.Add(_seg);
             _stage.Children.Add(_analog);
 
+            _ringTrack.Fill = null;
+            _ringArc.Fill = null;
+            _ringArc.StrokeStartLineCap = PenLineCap.Round;
+            _ringArc.StrokeEndLineCap = PenLineCap.Round;
+            _ring.Children.Add(_ringTrack);
+            _ring.Children.Add(_ringArc);
+            _ring.VerticalAlignment = VerticalAlignment.Center;
+            _ring.Visibility = Visibility.Collapsed;
+
+            _barFill.HorizontalAlignment = HorizontalAlignment.Stretch;
+            _barFill.RenderTransformOrigin = new Point(0, 0.5);
+            _barFill.RenderTransform = new ScaleTransform(1, 1);
+            _bar.Children.Add(_barTrack);
+            _bar.Children.Add(_barFill);
+            _bar.Visibility = Visibility.Collapsed;
+
             _row.Orientation = Orientation.Horizontal;
             _row.HorizontalAlignment = HorizontalAlignment.Center;
             _row.Children.Add(_iconGlyph);
             _row.Children.Add(_iconImage);
             _row.Children.Add(_stage);
+            _row.Children.Add(_ring);
 
             var content = new StackPanel();
             content.Children.Add(_label);
             content.Children.Add(_above);
             content.Children.Add(_row);
+            content.Children.Add(_bar);
             content.Children.Add(_date);
             content.Children.Add(_below);
 
@@ -100,7 +132,12 @@ namespace BetterClock
         // How far the window must extend beyond the pill so the glow isn't cut off (in DIPs).
         public double OuterMargin
         {
-            get { return 12 + (_s.ShadowEnabled ? ColorUtil.Clamp(_s.ShadowBlur, 0, 60) : 0); }
+            get
+            {
+                int glow = _s.ShadowEnabled ? ColorUtil.Clamp(_s.ShadowBlur, 0, 60) : 0;
+                if (Kind == OverlayMode.Countdown && _s.PulseSeconds > 0 && glow < 40) glow = 40;   // room for the pulse
+                return 12 + glow;
+            }
         }
 
         private DigitStyle Effective
@@ -124,6 +161,130 @@ namespace BetterClock
             _role = role;
             _fg = new SolidColorBrush(RoleColor());
             Refresh();
+            UpdateProgress();
+        }
+
+        // 0..1 = fill the ring / bar that far, -1 = hide it.
+        public void SetProgress(double fraction)
+        {
+            if (fraction > 1) fraction = 1;
+            if (fraction < 0 && fraction != -1) fraction = 0;
+            if (Math.Abs(fraction - _progress) < 0.002) return;
+            _progress = fraction;
+            UpdateProgress();
+        }
+
+        // Replaces "Text above" (null = go back to the normal text).
+        public void SetCaption(string text)
+        {
+            if (text == _caption) return;
+            _caption = text;
+            UpdateAbove();
+        }
+
+        // Pulsing glow (last seconds of a countdown).
+        public void SetPulse(bool on)
+        {
+            if (on == _pulse) return;
+            _pulse = on;
+            ApplyEffect();
+        }
+
+        private void UpdateAbove()
+        {
+            string t = string.IsNullOrEmpty(_caption) ? (_s.TextAbove ?? "") : _caption;
+            if (_above.Text != t) _above.Text = t;
+            _above.Visibility = t.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        private void UpdateProgress()
+        {
+            ProgressStyle ps = _s.ProgressStyle;
+            bool show = _progress >= 0 && ps != ProgressStyle.None && Kind != OverlayMode.Clock;
+            double thick = ColorUtil.Clamp(_s.ProgressThickness, 2, 30);
+            Brush track = new SolidColorBrush(Color.FromArgb(70, 255, 255, 255));
+
+            if (show && ps == ProgressStyle.Bar)
+            {
+                _ring.Visibility = Visibility.Collapsed;
+                _bar.Visibility = Visibility.Visible;
+                _bar.Height = thick;
+                _bar.Margin = new Thickness(0, 8, 0, 0);
+                _barTrack.Background = track;
+                _barTrack.CornerRadius = new CornerRadius(thick / 2);
+                _barFill.Background = _fg;
+                _barFill.CornerRadius = new CornerRadius(thick / 2);
+                ((ScaleTransform)_barFill.RenderTransform).ScaleX = _progress;
+                _barFill.Visibility = _progress < 0.003 ? Visibility.Collapsed : Visibility.Visible;
+            }
+            else if (show && ps == ProgressStyle.Ring)
+            {
+                _bar.Visibility = Visibility.Collapsed;
+                _ring.Visibility = Visibility.Visible;
+                double d = ColorUtil.Clamp(_s.FontSize * 0.95, 24, 260);
+                _ring.Width = d;
+                _ring.Height = d;
+                _ring.Margin = new Thickness(14, 0, 0, 0);
+                _ringTrack.Stroke = track;
+                _ringTrack.StrokeThickness = thick;
+                _ringArc.Stroke = _fg;
+                _ringArc.StrokeThickness = thick;
+
+                if (_progress < 0.003)
+                {
+                    _ringArc.Data = null;
+                }
+                else
+                {
+                    double c = d / 2;
+                    double r = (d - thick) / 2;
+                    double a = Math.Min(_progress, 0.9999) * 2 * Math.PI;
+                    var fig = new PathFigure();
+                    fig.StartPoint = new Point(c, c - r);
+                    fig.IsClosed = false;
+                    fig.Segments.Add(new ArcSegment(new Point(c + r * Math.Sin(a), c - r * Math.Cos(a)),
+                        new Size(r, r), 0, a > Math.PI, SweepDirection.Clockwise, true));
+                    var geo = new PathGeometry();
+                    geo.Figures.Add(fig);
+                    _ringArc.Data = geo;
+                }
+            }
+            else
+            {
+                _bar.Visibility = Visibility.Collapsed;
+                _ring.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        // The glow / shadow around the pill. While pulsing it breathes in the pulse colour.
+        private void ApplyEffect()
+        {
+            if (_pulse && Kind == OverlayMode.Countdown && _s.PulseSeconds > 0)
+            {
+                var sh = new DropShadowEffect();
+                sh.ShadowDepth = 0;
+                sh.Opacity = 1;
+                sh.Color = ColorUtil.Parse(_s.PulseColor, Colors.Red);
+                sh.BlurRadius = 8;
+                Effect = sh;
+                var a = new DoubleAnimation(8, 40, TimeSpan.FromMilliseconds(450));
+                a.AutoReverse = true;
+                a.RepeatBehavior = RepeatBehavior.Forever;
+                sh.BeginAnimation(DropShadowEffect.BlurRadiusProperty, a);
+            }
+            else if (_s.ShadowEnabled)
+            {
+                var sh = new DropShadowEffect();
+                sh.BlurRadius = ColorUtil.Clamp(_s.ShadowBlur, 0, 60);
+                sh.ShadowDepth = 0;
+                sh.Opacity = 0.7;
+                sh.Color = Colors.Black;
+                Effect = sh;
+            }
+            else
+            {
+                Effect = null;
+            }
         }
 
         // A dashed outline so you can see what you are dragging.
@@ -183,6 +344,9 @@ namespace BetterClock
                 case OverlayRole.Running: return ColorUtil.Parse(_s.RunningColor, Colors.LightGreen);
                 case OverlayRole.Paused: return ColorUtil.Parse(_s.PausedColor, Colors.Orange);
                 case OverlayRole.Finished: return ColorUtil.Parse(_s.FinishedColor, Colors.Red);
+                case OverlayRole.Warning: return ColorUtil.Parse(_s.WarnColor, Colors.Orange);
+                case OverlayRole.Danger: return ColorUtil.Parse(_s.DangerColor, Colors.Red);
+                case OverlayRole.Target: return ColorUtil.Parse(_s.TargetColor, Colors.LimeGreen);
                 default: return ColorUtil.Parse(_s.TextColor, Colors.White);
             }
         }
@@ -351,8 +515,7 @@ namespace BetterClock
                 tb.FontSize = extraSize;
                 tb.Foreground = extraBrush;
             }
-            _above.Text = s.TextAbove ?? "";
-            _above.Visibility = string.IsNullOrEmpty(s.TextAbove) ? Visibility.Collapsed : Visibility.Visible;
+            UpdateAbove();
             _below.Text = s.TextBelow ?? "";
             _below.Visibility = string.IsNullOrEmpty(s.TextBelow) ? Visibility.Collapsed : Visibility.Visible;
 
@@ -387,12 +550,14 @@ namespace BetterClock
                 _row.Children.Add(_stage);
                 _row.Children.Add(_iconGlyph);
                 _row.Children.Add(_iconImage);
+                _row.Children.Add(_ring);
             }
             else
             {
                 _row.Children.Add(_iconGlyph);
                 _row.Children.Add(_iconImage);
                 _row.Children.Add(_stage);
+                _row.Children.Add(_ring);
             }
 
             // ---- background ----
@@ -442,19 +607,7 @@ namespace BetterClock
             }
 
             // ---- shadow / glow around the pill ----
-            if (s.ShadowEnabled)
-            {
-                var sh = new DropShadowEffect();
-                sh.BlurRadius = ColorUtil.Clamp(s.ShadowBlur, 0, 60);
-                sh.ShadowDepth = 0;
-                sh.Opacity = 0.7;
-                sh.Color = Colors.Black;
-                Effect = sh;
-            }
-            else
-            {
-                Effect = null;
-            }
+            ApplyEffect();
 
             // ---- size ----
             double k = ColorUtil.Clamp(s.Scale, 25, 400) / 100.0;
@@ -463,6 +616,7 @@ namespace BetterClock
 
             if (_moveOutline.Visibility == Visibility.Visible) SetMoveOutline(true);
             Refresh();
+            UpdateProgress();
         }
     }
 }

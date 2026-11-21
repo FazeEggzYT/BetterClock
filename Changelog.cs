@@ -19,6 +19,25 @@ namespace BetterClock
 
             list.Add(new ChangelogEntry
             {
+                Version = "1.4.0",
+                Date = "21 Nov 2026",
+                Title = "Countdown and timer power",
+                Items = new string[]
+                {
+                    "New: progress ring or bar for the countdown (empties) and the timer target (fills).",
+                    "New: countdown turns amber, then red, as time runs low.",
+                    "New: glowing pulse in the last 10 seconds of a countdown.",
+                    "New: timer target - the timer turns green and chimes when it reaches your time.",
+                    "New: overtime - the countdown keeps counting up (+00:05) after zero.",
+                    "New: chained countdowns, for example 25:00 Work then 5:00 Break, with the step name shown above.",
+                    "New: Pomodoro mode with work, short break and long break cycles.",
+                    "New: warning beeps at 10, 5, 3, 2 and 1 seconds left (you can change the list).",
+                    "Fixed the Update now button not showing when a new version is available."
+                }
+            });
+
+            list.Add(new ChangelogEntry
+            {
                 Version = "1.3.2",
                 Date = "21 Nov 2026",
                 Title = "Update button fix",

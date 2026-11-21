@@ -15,6 +15,8 @@ namespace BetterClock
     public enum DigitStyle { Normal, Flip, Led, Terminal, Analog }
     public enum OverlayIcon { None, Clock, Hourglass, Stopwatch, Bell, Star, Bolt, Flag, Trophy, Skull, Heart, Gamepad, Custom }
     public enum ImageFit { Cover, Fit, Stretch }
+    public enum ProgressStyle { None, Bar, Ring }
+    public enum CountdownPlanKind { Single, Chain, Pomodoro }
 
     // Where one overlay sits and how it looks.
     public class ModeStyle
@@ -83,6 +85,15 @@ namespace BetterClock
         public int BackgroundImageOpacity = 60;
         public ImageFit BackgroundImageFit = ImageFit.Cover;
 
+        // ---- progress bar / ring, low-time colours, glow pulse ----
+        public ProgressStyle ProgressStyle = ProgressStyle.None;
+        public int ProgressThickness = 6;
+        public string WarnColor = "#FFB020";     // countdown running low
+        public string DangerColor = "#FF4040";   // countdown almost out
+        public string TargetColor = "#4DFF88";   // timer reached its target
+        public int PulseSeconds = 10;            // glow pulses in the last N seconds (0 = off)
+        public string PulseColor = "#FF4040";
+
         // ---- shadow ----
         public bool ShadowEnabled = true;
         public int ShadowBlur = 14;
@@ -129,6 +140,9 @@ namespace BetterClock
 
         // ================= Timer behaviour =================
         public bool TimerKeepRunningHidden = true;
+        public bool TimerTargetEnabled = false;   // turns green (and beeps) when it reaches the target
+        public int TimerTargetSeconds = 300;
+        public bool TimerTargetBeep = true;
 
         // ================= Countdown behaviour =================
         public int CountdownTotalSeconds = 60;
@@ -139,6 +153,19 @@ namespace BetterClock
         public string CountdownSoundPath = "";
         public int CountdownSoundVolume = 80;
         public int CountdownSoundRepeat = 2;
+        public bool CountdownOvertime = false;        // keep counting up (+00:05) after zero
+        public bool CountdownLowColors = true;        // amber, then red, as time runs low
+        public int CountdownAmberAt = 30;             // seconds left
+        public int CountdownRedAt = 10;
+        public bool CountdownWarnBeeps = false;       // short beeps at the seconds listed below
+        public string CountdownWarnList = "10,5,3,2,1";
+        public CountdownPlanKind CountdownPlan = CountdownPlanKind.Single;
+        public string CountdownChain = "25:00 Work;5:00 Break";   // time and name, separated by ;
+        public bool CountdownChainLoop = false;
+        public int PomoWorkMin = 25;
+        public int PomoShortMin = 5;
+        public int PomoLongMin = 15;
+        public int PomoRounds = 4;
 
         // ================= Hotkeys (empty = not set) =================
         public string KeyClockToggle = "Ctrl+Alt+C";

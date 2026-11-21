@@ -32,6 +32,18 @@ namespace BetterClock
             }
         }
 
+        // A short beep for the "seconds left" warnings.
+        public static void PlayWarning()
+        {
+            try { SystemSounds.Beep.Play(); } catch (Exception) { }
+        }
+
+        // A soft chime when a chained countdown moves on to its next step, or a timer reaches its target.
+        public static void PlayChime()
+        {
+            try { SystemSounds.Asterisk.Play(); } catch (Exception) { }
+        }
+
         public static void Stop()
         {
             _remaining = 0;
