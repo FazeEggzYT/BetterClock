@@ -77,8 +77,12 @@ namespace BetterClock
                     return result;
                 }
 
-                result.Latest = tag.Groups[1].Value.TrimStart('v', 'V');
+                string rawTag = tag.Groups[1].Value;
+                result.Latest = rawTag.TrimStart('v', 'V');
                 result.Url = url.Success ? url.Groups[1].Value : ReleasesUrl;
+                // The direct link always looks like this, so use it when GitHub's answer didn't list the file.
+                if (string.IsNullOrEmpty(result.DownloadUrl))
+                    result.DownloadUrl = "https://github.com/" + AppInfo.Repo + "/releases/download/" + rawTag + "/BetterClock.exe";
                 result.Ok = true;
                 result.UpdateAvailable = IsNewer(result.Latest, AppInfo.Version);
             }

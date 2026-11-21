@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.3.2
+- Fixed the Update now button not showing when a new version is available.
+
 ## v1.3.1
 - Fixed timer not disappearing.
 

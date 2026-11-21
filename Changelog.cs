@@ -19,6 +19,17 @@ namespace BetterClock
 
             list.Add(new ChangelogEntry
             {
+                Version = "1.3.2",
+                Date = "21 Nov 2026",
+                Title = "Update button fix",
+                Items = new string[]
+                {
+                    "Fixed the Update now button not showing when a new version is available."
+                }
+            });
+
+            list.Add(new ChangelogEntry
+            {
                 Version = "1.3.1",
                 Date = "21 Nov 2026",
                 Title = "Bug fix",
