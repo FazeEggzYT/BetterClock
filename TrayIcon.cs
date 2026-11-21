@@ -1,0 +1,89 @@
+// The little icon near the clock in the Windows taskbar, with its right-click menu.
+using System;
+using WinForms = System.Windows.Forms;
+
+namespace BetterClock
+{
+    public class TrayIcon : IDisposable
+    {
+        private readonly WinForms.NotifyIcon _icon;
+        private readonly WinForms.ToolStripMenuItem _autoStartItem;
+
+        public TrayIcon()
+        {
+            var menu = new WinForms.ContextMenuStrip();
+
+            var header = new WinForms.ToolStripMenuItem(Program.AppName + "  v" + AppInfo.Version);
+            header.Enabled = false;
+            menu.Items.Add(header);
+            menu.Items.Add(new WinForms.ToolStripSeparator());
+
+            menu.Items.Add(Item("Show / hide clock", delegate { AppHost.Controller.ToggleClock(); }));
+            menu.Items.Add(Item("Show / hide timer", delegate { AppHost.Controller.ToggleTimer(); }));
+            menu.Items.Add(Item("Show / hide countdown", delegate { AppHost.Controller.ToggleCountdown(); }));
+            menu.Items.Add(Item("Move overlays (unlock / lock)", delegate { AppHost.ToggleMoveMode(); }));
+            menu.Items.Add(Item("Hide all overlays", delegate { AppHost.Controller.HideAll(); }));
+            menu.Items.Add(Item("Start / stop", delegate { AppHost.Controller.StartStop(); }));
+            menu.Items.Add(Item("Reset", delegate { AppHost.Controller.Reset(); }));
+            menu.Items.Add(new WinForms.ToolStripSeparator());
+
+            menu.Items.Add(Item("Settings...", delegate { SettingsWindow.ShowSingleton(); }));
+            menu.Items.Add(Item("Check for updates", delegate
+            {
+                if (!UpdateChecker.Configured) { ShowBalloon("Better Clock", "No GitHub repository is set (edit repo.txt and build again)."); return; }
+                UpdateChecker.CheckAsync(delegate(UpdateResult r)
+                {
+                    if (!r.Ok) ShowBalloon("Better Clock", r.Error);
+                    else if (r.UpdateAvailable)
+                    {
+                        ShowBalloon("Better Clock update", "Version " + r.Latest + " is available. Opening the download page...");
+                        try { System.Diagnostics.Process.Start(r.Url); } catch (Exception) { }
+                    }
+                    else ShowBalloon("Better Clock", "You are up to date (v" + AppInfo.Version + ").");
+                });
+            }));
+
+            _autoStartItem = new WinForms.ToolStripMenuItem("Start with Windows");
+            _autoStartItem.CheckOnClick = false;
+            _autoStartItem.Click += delegate
+            {
+                bool want = !AutoStart.IsEnabled();
+                if (AutoStart.Set(want))
+                {
+                    AppHost.Settings.StartWithWindows = want;
+                    AppHost.Settings.Save();
+                }
+            };
+            menu.Items.Add(_autoStartItem);
+            menu.Opening += delegate { _autoStartItem.Checked = AutoStart.IsEnabled(); };
+
+            menu.Items.Add(new WinForms.ToolStripSeparator());
+            menu.Items.Add(Item("Exit", delegate { System.Windows.Application.Current.Shutdown(); }));
+
+            _icon = new WinForms.NotifyIcon();
+            _icon.Icon = IconFactory.GetIcon();
+            _icon.Text = Program.AppName;
+            _icon.ContextMenuStrip = menu;
+            _icon.DoubleClick += delegate { SettingsWindow.ShowSingleton(); };
+            _icon.Visible = true;
+        }
+
+        private static WinForms.ToolStripMenuItem Item(string text, Action onClick)
+        {
+            var i = new WinForms.ToolStripMenuItem(text);
+            i.Click += delegate { onClick(); };
+            return i;
+        }
+
+        public void ShowBalloon(string title, string text)
+        {
+            _icon.ShowBalloonTip(5000, title, text, WinForms.ToolTipIcon.Info);
+        }
+
+        public void Dispose()
+        {
+            _icon.Visible = false;
+            _icon.Dispose();
+        }
+    }
+}
