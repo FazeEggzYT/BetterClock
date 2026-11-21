@@ -1,0 +1,59 @@
+name: Build and release
+
+# Push a tag like v1.2.0  ->  Windows builds BetterClock.exe  ->  a GitHub Release is created with the EXE attached.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set version and repository from the tag
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $v = "${{ github.ref_name }}".TrimStart("v")
+            Set-Content -Path version.txt -Value $v
+          }
+          Set-Content -Path repo.txt -Value "${{ github.repository }}"
+          Get-Content version.txt, repo.txt
+
+      - name: Make sure release notes exist
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        run: |
+          $f = "RELEASE_NOTES_${{ github.ref_name }}.md"
+          if (-not (Test-Path $f)) { Set-Content -Path $f -Value "Better Clock ${{ github.ref_name }}" }
+
+      - name: Build
+        shell: cmd
+        run: build.bat
+
+      - name: Check the EXE exists
+        shell: pwsh
+        run: |
+          if (-not (Test-Path dist/BetterClock.exe)) { throw "dist/BetterClock.exe was not built" }
+          Get-Item dist/BetterClock.exe | Format-List Name, Length
+
+      - name: Keep a copy of the EXE on the run page
+        uses: actions/upload-artifact@v4
+        with:
+          name: BetterClock
+          path: dist/BetterClock.exe
+
+      - name: Create the release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/BetterClock.exe
+          name: Better Clock ${{ github.ref_name }}
+          body_path: RELEASE_NOTES_${{ github.ref_name }}.md
+          generate_release_notes: false
