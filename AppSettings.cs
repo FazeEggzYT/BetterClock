@@ -204,6 +204,8 @@ namespace BetterClock
         public bool AnimationsEnabled = true;
         public int AnimationSpeed = 100;     // percent: 50 = slow, 200 = fast
         public int UiScale = 100;            // percent
+        public int WindowWidth = 1120;       // the settings window remembers its size
+        public int WindowHeight = 800;
         public bool StartWithWindows = false;
         public bool ShowSplash = true;
         public bool ShowStartupMessage = true;

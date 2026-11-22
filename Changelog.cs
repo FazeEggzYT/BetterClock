@@ -19,6 +19,22 @@ namespace BetterClock
 
             list.Add(new ChangelogEntry
             {
+                Version = "1.4.3",
+                Date = "22 Nov 2026",
+                Title = "Settings polish",
+                Items = new string[]
+                {
+                    "New: Presets tab with a theme gallery (10 ready-made looks) and your own saved presets.",
+                    "New: Themes and My presets in the tray menu for quick switching.",
+                    "New: search box on the Clock, Timer, Countdown and Settings tabs.",
+                    "New: Reset this section button at the bottom of every section.",
+                    "New: hover tips on the settings.",
+                    "New: the settings window is resizable and remembers its size."
+                }
+            });
+
+            list.Add(new ChangelogEntry
+            {
                 Version = "1.4.1.1",
                 Date = "22 Nov 2026",
                 Title = "Size controls",

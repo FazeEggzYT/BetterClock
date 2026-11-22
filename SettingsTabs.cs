@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -20,6 +21,7 @@ namespace BetterClock
             BuildModeTab(OverlayMode.Clock);
             BuildModeTab(OverlayMode.Timer);
             BuildModeTab(OverlayMode.Countdown);
+            BuildPresetsTab();
             BuildGamesTab();
             BuildKeysTab();
             BuildSettingsTab();
@@ -46,6 +48,8 @@ namespace BetterClock
         private void FillModeTab(OverlayMode mode, StackPanel page)
         {
             ModeStyle st = S.StyleFor(mode);
+
+            AddSearchBox(page);
 
             // ---- tools ----
             var tools = new WrapPanel();
@@ -340,6 +344,219 @@ namespace BetterClock
                 }
                 page.Children.Add(prog);
             }
+
+            AddResetButtons(page, mode);
+        }
+
+        // ======================================================================== presets and themes
+
+        private void BuildPresetsTab()
+        {
+            StackPanel page = NewTab("Presets", "Presets and themes", "One-click looks for all three overlays, and your own saved looks. Positions and label texts are not changed.");
+
+            // ---- theme gallery ----
+            AnimatedSection gal = new AnimatedSection("Theme gallery", true);
+            gal.Body.Children.Add(Hint("Click a theme to put it on the Clock, Timer and Countdown. Watch the preview on the right. \"Default\" goes back to the normal look."));
+            var wrap = new WrapPanel();
+            foreach (string themeName in LookPresets.BuiltInNames)
+            {
+                string chosen = themeName;
+                Button b = MakeButton(chosen, delegate
+                {
+                    LookPresets.ApplyBuiltIn(chosen);
+                    RefillAllModes();
+                    Changed();
+                });
+                b.Padding = new Thickness(16, 7, 16, 7);
+                b.Margin = new Thickness(0, 0, 8, 8);
+                wrap.Children.Add(b);
+            }
+            gal.Body.Children.Add(wrap);
+            page.Children.Add(gal);
+
+            // ---- your presets ----
+            AnimatedSection mine = new AnimatedSection("Your presets", true);
+            mine.Body.Children.Add(Hint("Saves the current look of all three overlays under a name, so you can come back to it. They also show in the tray menu."));
+
+            var combo = new ComboBox();
+            combo.Width = 240;
+            Action refresh = delegate
+            {
+                string keep = combo.SelectedItem as string;
+                combo.Items.Clear();
+                foreach (string n in LookPresets.Names()) combo.Items.Add(n);
+                if (keep != null && combo.Items.Contains(keep)) combo.SelectedItem = keep;
+            };
+            refresh();
+
+            Grid saveRow = AddRow(mine.Body, "Save the current look as");
+            var saveSp = new WrapPanel();
+            var nameBox = new TextBox();
+            nameBox.Width = 200;
+            nameBox.Margin = new Thickness(0, 0, 8, 0);
+            saveSp.Children.Add(nameBox);
+            saveSp.Children.Add(MakeButton("Save", delegate
+            {
+                string saved = LookPresets.Save(nameBox.Text);
+                if (saved == null)
+                {
+                    MessageBox.Show(this, "Type a name first (letters and numbers).", Program.AppName);
+                    return;
+                }
+                nameBox.Text = "";
+                refresh();
+                combo.SelectedItem = saved;
+            }));
+            Put(saveRow, saveSp);
+
+            Grid pickRow = AddRow(mine.Body, "Saved presets");
+            var pickSp = new WrapPanel();
+            combo.Margin = new Thickness(0, 0, 8, 0);
+            pickSp.Children.Add(combo);
+            pickSp.Children.Add(MakeButton("Apply", delegate
+            {
+                string sel = combo.SelectedItem as string;
+                if (sel == null) return;
+                if (LookPresets.ApplySaved(sel))
+                {
+                    RefillAllModes();
+                    Changed();
+                }
+            }));
+            pickSp.Children.Add(MakeButton("Delete", delegate
+            {
+                string sel = combo.SelectedItem as string;
+                if (sel == null) return;
+                if (MessageBox.Show(this, "Delete the preset \"" + sel + "\"?", Program.AppName, MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                LookPresets.Delete(sel);
+                combo.SelectedItem = null;
+                refresh();
+            }));
+            Put(pickRow, pickSp);
+            mine.Body.Children.Add(Hint("Presets are saved as small files in the presets folder next to your settings, so you can also copy them to a friend."));
+            var openRow = new WrapPanel();
+            openRow.Children.Add(MakeButton("Open the presets folder", delegate
+            {
+                try
+                {
+                    Directory.CreateDirectory(LookPresets.Folder);
+                    Process.Start(LookPresets.Folder);
+                }
+                catch (Exception) { }
+            }));
+            mine.Body.Children.Add(openRow);
+            page.Children.Add(mine);
+        }
+
+        // ======================================================================== search and reset
+
+        // A search box at the top of a page: hides every setting that does not match.
+        private void AddSearchBox(StackPanel page)
+        {
+            var row = new StackPanel();
+            row.Orientation = Orientation.Horizontal;
+            row.Margin = new Thickness(0, 0, 0, 12);
+            row.Children.Add(Label("Search settings:  "));
+
+            var box = new TextBox();
+            box.Width = 300;
+            box.ToolTip = "Type a word, like colour, size, sound or shadow";
+            box.TextChanged += delegate
+            {
+                if (_loading) return;
+                FilterPage(page, box.Text);
+            };
+            row.Children.Add(box);
+            row.Children.Add(MakeButton("Clear", delegate { box.Text = ""; }));
+            ((Button)row.Children[2]).Margin = new Thickness(8, 0, 0, 0);
+            page.Children.Add(row);
+        }
+
+        private void FilterPage(StackPanel page, string query)
+        {
+            string q = (query ?? "").Trim().ToLowerInvariant();
+            foreach (UIElement child in page.Children)
+            {
+                AnimatedSection sec = child as AnimatedSection;
+                if (sec == null) continue;
+
+                if (q.Length == 0)
+                {
+                    sec.Visibility = Visibility.Visible;
+                    foreach (UIElement item in sec.Body.Children) item.Visibility = Visibility.Visible;
+                    continue;
+                }
+
+                bool titleHit = sec.Title.ToLowerInvariant().Contains(q);
+                bool any = titleHit;
+                foreach (UIElement item in sec.Body.Children)
+                {
+                    bool hit = titleHit || CollectText(item).ToLowerInvariant().Contains(q);
+                    item.Visibility = hit ? Visibility.Visible : Visibility.Collapsed;
+                    if (hit) any = true;
+                }
+                sec.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+                if (any) sec.SetOpen(true, false);
+            }
+        }
+
+        private static string CollectText(DependencyObject d)
+        {
+            var sb = new StringBuilder();
+            AppendText(d, sb);
+            return sb.ToString();
+        }
+
+        private static void AppendText(DependencyObject d, StringBuilder sb)
+        {
+            TextBlock tb = d as TextBlock;
+            if (tb != null) sb.Append(tb.Text).Append(' ');
+
+            ContentControl cc = d as ContentControl;
+            if (cc != null && cc.Content is string) sb.Append((string)cc.Content).Append(' ');
+
+            FrameworkElement fe = d as FrameworkElement;
+            if (fe != null && fe.ToolTip is string) sb.Append((string)fe.ToolTip).Append(' ');
+
+            foreach (object child in LogicalTreeHelper.GetChildren(d))
+            {
+                DependencyObject c = child as DependencyObject;
+                if (c != null) AppendText(c, sb);
+            }
+        }
+
+        // Adds "Reset this section" at the bottom of every section that has settings.
+        private void AddResetButtons(StackPanel page, OverlayMode mode)
+        {
+            foreach (UIElement child in page.Children)
+            {
+                AnimatedSection sec = child as AnimatedSection;
+                if (sec == null) continue;
+                List<KeyValuePair<object, string>> fields;
+                if (!_secFields.TryGetValue(sec.Body, out fields) || fields.Count == 0) continue;
+
+                List<KeyValuePair<object, string>> mine = fields;
+                Button b = MakeButton("Reset this section", delegate { ResetFields(mine, mode); });
+                b.Margin = new Thickness(0, 10, 0, 0);
+                b.HorizontalAlignment = HorizontalAlignment.Left;
+                b.ToolTip = "Put every setting in this section back to its normal value.";
+                sec.Body.Children.Add(b);
+            }
+        }
+
+        private void ResetFields(List<KeyValuePair<object, string>> fields, OverlayMode mode)
+        {
+            var fresh = new AppSettings();
+            foreach (KeyValuePair<object, string> kv in fields)
+            {
+                object source = null;
+                if (kv.Key is ModeStyle) source = fresh.StyleFor(mode);
+                else if (kv.Key is AppSettings) source = fresh;
+                if (source == null) continue;
+                Reflect.Set(kv.Key, kv.Value, Reflect.Get(source, kv.Value));
+            }
+            RefillMode(mode);
+            Changed();
         }
 
         private void RefillMode(OverlayMode mode)
@@ -861,6 +1078,7 @@ namespace BetterClock
         private void BuildSettingsTab()
         {
             StackPanel page = NewTab("Settings", "Settings", "How Better Clock itself looks and behaves.");
+            AddSearchBox(page);
 
             // ---- look of the app ----
             var look = new AnimatedSection("Theme and colours", true);

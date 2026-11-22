@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.4.3
+- New: Presets tab with a theme gallery (10 looks) and your own saved presets.
+- New: Themes and My presets in the tray menu.
+- New: search box on the Clock, Timer, Countdown and Settings tabs.
+- New: "Reset this section" buttons.
+- New: hover tips on the settings.
+- New: the settings window is resizable and remembers its size.
+
 ## v1.4.1.1
 - New: Overall size slider at the top of every tab (25% to 500%).
 - New: Ring size slider for the progress ring.

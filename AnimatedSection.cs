@@ -15,9 +15,11 @@ namespace BetterClock
         private readonly Border _bodyClip;
         private readonly RotateTransform _chevron;
         private bool _open;
+        private readonly string _title;
 
         public AnimatedSection(string title, bool open)
         {
+            _title = title ?? "";
             SetResourceReference(BackgroundProperty, "Panel2Brush");
             CornerRadius = new CornerRadius(12);
             Margin = new Thickness(0, 0, 0, 10);
@@ -63,6 +65,7 @@ namespace BetterClock
         }
 
         public StackPanel Body { get { return _body; } }
+        public string Title { get { return _title; } }
 
         public void SetOpen(bool open, bool animate)
         {

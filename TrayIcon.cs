@@ -27,6 +27,35 @@ namespace BetterClock
             menu.Items.Add(Item("Reset", delegate { AppHost.Controller.Reset(); }));
             menu.Items.Add(new WinForms.ToolStripSeparator());
 
+            // looks: the theme gallery and your saved presets (rebuilt every time the menu opens)
+            var themesItem = new WinForms.ToolStripMenuItem("Themes");
+            var presetsItem = new WinForms.ToolStripMenuItem("My presets");
+            menu.Items.Add(themesItem);
+            menu.Items.Add(presetsItem);
+            menu.Opening += delegate
+            {
+                themesItem.DropDownItems.Clear();
+                foreach (string themeName in LookPresets.BuiltInNames)
+                {
+                    string chosen = themeName;
+                    themesItem.DropDownItems.Add(Item(chosen, delegate { LookPresets.ApplyBuiltIn(chosen); LookPresets.Commit(); }));
+                }
+                presetsItem.DropDownItems.Clear();
+                var saved = LookPresets.Names();
+                if (saved.Count == 0)
+                {
+                    var none = new WinForms.ToolStripMenuItem("(none saved yet)");
+                    none.Enabled = false;
+                    presetsItem.DropDownItems.Add(none);
+                }
+                foreach (string presetName in saved)
+                {
+                    string chosen = presetName;
+                    presetsItem.DropDownItems.Add(Item(chosen, delegate { if (LookPresets.ApplySaved(chosen)) LookPresets.Commit(); }));
+                }
+            };
+            menu.Items.Add(new WinForms.ToolStripSeparator());
+
             menu.Items.Add(Item("Settings...", delegate { SettingsWindow.ShowSingleton(); }));
             menu.Items.Add(Item("Check for updates", delegate
             {

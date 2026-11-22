@@ -2,6 +2,7 @@
 // The tabs themselves are in SettingsTabs.cs.
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -68,11 +69,46 @@ namespace BetterClock
             if (tab != null) _instance.SelectTab(tab);
         }
 
+        // Which settings each section holds (so "Reset this section" knows what to put back).
+        private readonly Dictionary<StackPanel, List<KeyValuePair<object, string>>> _secFields = new Dictionary<StackPanel, List<KeyValuePair<object, string>>>();
+
+        private void Track(StackPanel p, object owner, string field)
+        {
+            List<KeyValuePair<object, string>> list;
+            if (!_secFields.TryGetValue(p, out list))
+            {
+                list = new List<KeyValuePair<object, string>>();
+                _secFields[p] = list;
+            }
+            list.Add(new KeyValuePair<object, string>(owner, field));
+        }
+
+        // Hover help for a setting.
+        private static void Tip(FrameworkElement el, string field)
+        {
+            string tip = SettingsTips.Get(field);
+            if (tip != null) el.ToolTip = tip;
+        }
+
+        // Called after a preset or theme was applied from the tray menu.
+        public static void RefreshIfOpen()
+        {
+            if (_instance != null) _instance.RefillAllModes();
+        }
+
+        private void RefillAllModes()
+        {
+            RefillMode(OverlayMode.Clock);
+            RefillMode(OverlayMode.Timer);
+            RefillMode(OverlayMode.Countdown);
+            UpdatePreview();
+        }
+
         public SettingsWindow()
         {
             Title = Program.AppName + " - Settings";
-            Width = 1120;
-            Height = 800;
+            Width = ColorUtil.Clamp(AppHost.Settings.WindowWidth, 980, 4000);
+            Height = ColorUtil.Clamp(AppHost.Settings.WindowHeight, 640, 3000);
             MinWidth = 980;
             MinHeight = 640;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -126,6 +162,16 @@ namespace BetterClock
             _previewTimer.Start();
 
             PreviewKeyDown += OnCaptureKey;
+
+            // remember the window size
+            SizeChanged += delegate
+            {
+                if (_loading || WindowState != WindowState.Normal) return;
+                S.WindowWidth = (int)ActualWidth;
+                S.WindowHeight = (int)ActualHeight;
+                _saveTimer.Stop();
+                _saveTimer.Start();
+            };
 
             Closing += delegate
             {
@@ -559,7 +605,9 @@ namespace BetterClock
 
         private CheckBox AddCheck(StackPanel p, object owner, string label, string field, Action<bool> extra)
         {
+            Track(p, owner, field);
             var c = new CheckBox();
+            Tip(c, field);
             c.Content = label;
             c.Margin = new Thickness(0, 6, 0, 6);
             c.IsChecked = (bool)Reflect.Get(owner, field);
@@ -577,7 +625,9 @@ namespace BetterClock
 
         private void AddText(StackPanel p, object owner, string label, string field, double width)
         {
+            Track(p, owner, field);
             Grid row = AddRow(p, label);
+            Tip(row, field);
             var tb = new TextBox();
             tb.Width = width;
             tb.HorizontalAlignment = HorizontalAlignment.Left;
@@ -593,7 +643,9 @@ namespace BetterClock
 
         private void AddNumberBox(StackPanel p, object owner, string label, string field, int min, int max, string unit)
         {
+            Track(p, owner, field);
             Grid row = AddRow(p, label);
+            Tip(row, field);
             var sp = new StackPanel { Orientation = Orientation.Horizontal };
             var tb = new TextBox();
             tb.Width = 90;
@@ -616,7 +668,9 @@ namespace BetterClock
 
         private void AddSlider(StackPanel p, object owner, string label, string field, double min, double max, double step, string unit, Action extra)
         {
+            Track(p, owner, field);
             Grid row = AddRow(p, label);
+            Tip(row, field);
             var sp = new StackPanel { Orientation = Orientation.Horizontal };
 
             bool isInt = Reflect.Field(owner, field).FieldType == typeof(int);
@@ -659,7 +713,9 @@ namespace BetterClock
         // "skip" lists enum names that should not be offered here.
         private void AddEnumCombo(StackPanel p, object owner, string label, string field, Type enumType, Action extra, string[] skip)
         {
+            Track(p, owner, field);
             Grid row = AddRow(p, label);
+            Tip(row, field);
             var combo = new ComboBox();
             combo.Width = 230;
             combo.HorizontalAlignment = HorizontalAlignment.Left;
@@ -682,7 +738,9 @@ namespace BetterClock
         // A picture / sound file chooser: shows the file name, "Choose..." and "Remove".
         private void AddFilePicker(StackPanel p, object owner, string label, string field, string filter)
         {
+            Track(p, owner, field);
             Grid row = AddRow(p, label);
+            Tip(row, field);
             var sp = new WrapPanel();
             var name = Label("");
             name.Margin = new Thickness(0, 0, 10, 0);
@@ -715,7 +773,9 @@ namespace BetterClock
 
         private void AddFontCombo(StackPanel p, object owner, string label, string field)
         {
+            Track(p, owner, field);
             Grid row = AddRow(p, label);
+            Tip(row, field);
             var combo = new ComboBox();
             combo.Width = 260;
             combo.HorizontalAlignment = HorizontalAlignment.Left;
@@ -740,7 +800,9 @@ namespace BetterClock
 
         private void AddColor(StackPanel p, object owner, string label, string field, Action extra)
         {
+            Track(p, owner, field);
             Grid row = AddRow(p, label);
+            Tip(row, field);
             var sp = new WrapPanel();
 
             var swatch = new Border();
