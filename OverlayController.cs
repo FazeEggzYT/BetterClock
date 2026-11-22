@@ -38,6 +38,14 @@ namespace BetterClock
         private readonly List<int> _warnSet = new List<int>();
         private bool _targetReached;
 
+        // alarm, break reminder, session, on-screen notice
+        private DateTime _alarmDone = DateTime.MinValue;   // the day the alarm last rang
+        private bool _alarmRinging;
+        private DateTime _sessionStart = DateTime.Now;
+        private DateTime _breakStart = DateTime.Now;
+        private string _notice;
+        private DateTime _noticeUntil = DateTime.MinValue;
+
         public OverlayController()
         {
             _tick = new DispatcherTimer();
@@ -94,6 +102,7 @@ namespace BetterClock
         {
             if (mode == OverlayMode.Timer && IsVisible(OverlayMode.Timer))
             {
+                if (_timer.Elapsed.TotalSeconds >= 1) TimerHistory.Add(_timer.Elapsed.TotalSeconds);
                 _timer.Reset();
                 _timerPausedByHide = false;
             }
@@ -151,6 +160,7 @@ namespace BetterClock
 
         private void Hide(OverlayMode mode)
         {
+            if (mode == OverlayMode.Clock && _alarmRinging) StopAlarm();
             if (mode == OverlayMode.Timer)
             {
                 if (IsVisible(mode) && !S.TimerKeepRunningHidden && _timer.IsRunning)
@@ -289,7 +299,10 @@ namespace BetterClock
             CheckWarnings();
             CheckTarget();
 
-            if (IsVisible(OverlayMode.Clock) && !AppHost.MoveMode && !S.ClockHoldOpen && DateTime.Now >= _clockDeadline)
+            CheckAlarm(DateTime.Now);
+            CheckBreak(DateTime.Now);
+
+            if (IsVisible(OverlayMode.Clock) && !AppHost.MoveMode && !S.ClockHoldOpen && !_alarmRinging && DateTime.Now >= _clockDeadline)
             {
                 Hide(OverlayMode.Clock);
             }
@@ -315,6 +328,8 @@ namespace BetterClock
             {
                 o.SetText(FormatClock(S, DateTime.Now));
                 o.SetRole(OverlayRole.Normal);
+                o.SetInfo(BuildInfo(S, DateTime.Now, _sessionStart));
+                o.SetCaption(CurrentNotice());
             }
 
             o = AppHost.GetOverlay(OverlayMode.Timer);
@@ -359,6 +374,171 @@ namespace BetterClock
                     && S.Countdown.PulseSeconds > 0 && Math.Ceiling(rem) <= S.Countdown.PulseSeconds;
                 o.SetPulse(pulse);
             }
+        }
+
+        // ------------------------------------------------------------ alarm, break reminder, notices
+
+        private string CurrentNotice()
+        {
+            if (_notice == null) return null;
+            if (DateTime.Now >= _noticeUntil) { _notice = null; return null; }
+            return _notice;
+        }
+
+        private void ShowNotice(string text, double seconds, bool hold)
+        {
+            _notice = text;
+            _noticeUntil = hold ? DateTime.MaxValue : DateTime.Now.AddSeconds(seconds);
+        }
+
+        private void CheckAlarm(DateTime now)
+        {
+            if (!S.AlarmEnabled || _alarmRinging) return;
+            TimeSpan ts;
+            if (!TimeSpan.TryParse(S.AlarmTime, CultureInfo.InvariantCulture, out ts)) return;
+            if (ts < TimeSpan.Zero || ts.TotalHours >= 24) return;
+
+            DateTime at = now.Date + ts;
+            // rings within the first hour after the set time (so an alarm is not lost if the PC was busy)
+            if (now >= at && now < at.AddHours(1) && _alarmDone != now.Date)
+            {
+                _alarmDone = now.Date;
+                if (!S.AlarmRepeatDaily)
+                {
+                    S.AlarmEnabled = false;
+                    AppHost.SaveSettings();
+                }
+                RingAlarm();
+            }
+        }
+
+        private void RingAlarm()
+        {
+            _alarmRinging = true;
+            string label = string.IsNullOrEmpty(S.AlarmLabel) ? "Alarm" : S.AlarmLabel;
+            ShowNotice(label, 0, true);
+            Show(OverlayMode.Clock);
+            SoundService.PlayCountdownAlarm(S, true);
+        }
+
+        // Rings the alarm now (the Test button).
+        public void TestAlarm() { RingAlarm(); }
+
+        // Silences the alarm and removes its message. Hiding the clock does the same.
+        public void StopAlarm()
+        {
+            _alarmRinging = false;
+            _notice = null;
+            SoundService.Stop();
+        }
+
+        private void CheckBreak(DateTime now)
+        {
+            if (!S.BreakReminderEnabled) { _breakStart = now; return; }
+            int mins = ColorUtil.Clamp(S.BreakEveryMinutes, 1, 600);
+            if ((now - _breakStart).TotalMinutes < mins) return;
+
+            _breakStart = now;
+            ShowNotice("Time for a break!", 12, false);
+            SoundService.PlayChime();
+            if (!_alarmRinging)
+            {
+                Show(OverlayMode.Clock);
+                _clockDeadline = DateTime.Now.AddSeconds(12);
+            }
+        }
+
+        // Starts the session timer (and the break reminder) again from zero.
+        public void ResetSession()
+        {
+            _sessionStart = DateTime.Now;
+            _breakStart = DateTime.Now;
+        }
+
+        // ------------------------------------------------------------ extra clock lines (also used by the preview)
+
+        private static string _worldKey = null;
+        private static readonly List<KeyValuePair<string, TimeZoneInfo>> WorldZones = new List<KeyValuePair<string, TimeZoneInfo>>();
+
+        public static string BuildInfo(AppSettings s, DateTime now, DateTime sessionStart)
+        {
+            var lines = new List<string>();
+
+            // world clocks
+            string list = s.WorldClocks ?? "";
+            if (list != _worldKey)
+            {
+                _worldKey = list;
+                WorldZones.Clear();
+                foreach (string part in list.Split(';'))
+                {
+                    int bar = part.IndexOf('|');
+                    if (bar <= 0) continue;
+                    try
+                    {
+                        TimeZoneInfo tz = TimeZoneInfo.FindSystemTimeZoneById(part.Substring(bar + 1).Trim());
+                        WorldZones.Add(new KeyValuePair<string, TimeZoneInfo>(part.Substring(0, bar).Trim(), tz));
+                    }
+                    catch (Exception)
+                    {
+                        // unknown time zone name: skip it
+                    }
+                }
+            }
+            string fmt = s.Clock24Hour ? "HH:mm" : "h:mm tt";
+            foreach (KeyValuePair<string, TimeZoneInfo> z in WorldZones)
+            {
+                DateTime there = TimeZoneInfo.ConvertTime(DateTime.UtcNow, z.Value);
+                lines.Add(z.Key + "  " + there.ToString(fmt, CultureInfo.InvariantCulture));
+            }
+
+            // countdown to a date
+            if (s.DateCountdownEnabled)
+            {
+                DateTime target;
+                string name = string.IsNullOrEmpty(s.DateCountdownName) ? "" : s.DateCountdownName + ": ";
+                if (DateTime.TryParse(s.DateCountdownTarget, CultureInfo.InvariantCulture, DateTimeStyles.None, out target))
+                {
+                    TimeSpan left = target - now;
+                    if (left.TotalSeconds <= 0)
+                    {
+                        lines.Add(name + "now!");
+                    }
+                    else
+                    {
+                        string days = left.Days > 0 ? left.Days + "d " : "";
+                        lines.Add(name + days + string.Format("{0:00}:{1:00}:{2:00}", left.Hours, left.Minutes, left.Seconds));
+                    }
+                }
+                else
+                {
+                    lines.Add(name + "(type a date like 2026-12-25 18:00)");
+                }
+            }
+
+            // days since a date
+            if (s.DaysSinceEnabled)
+            {
+                DateTime since;
+                string name = string.IsNullOrEmpty(s.DaysSinceName) ? "" : s.DaysSinceName + ": ";
+                if (DateTime.TryParse(s.DaysSinceDate, CultureInfo.InvariantCulture, DateTimeStyles.None, out since))
+                {
+                    int days = (int)(now.Date - since.Date).TotalDays;
+                    lines.Add(name + days + (days == 1 ? " day" : " days"));
+                }
+                else
+                {
+                    lines.Add(name + "(type a date like 2026-01-31)");
+                }
+            }
+
+            // how long you have been playing
+            if (s.SessionShow)
+            {
+                lines.Add("Session " + FormatTime((int)(now - sessionStart).TotalSeconds));
+            }
+
+            return string.Join("\n", lines.ToArray());
         }
 
         // ------------------------------------------------------------ formatting (also used by the preview)

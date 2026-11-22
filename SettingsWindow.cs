@@ -383,6 +383,13 @@ namespace BetterClock
             return b;
         }
 
+        // The extra clock lines (world clocks, dates, session) as they will look.
+        private string PreviewInfo(OverlayMode m)
+        {
+            if (m != OverlayMode.Clock) return "";
+            return OverlayController.BuildInfo(S, DateTime.Now, DateTime.Now.AddMinutes(-83));
+        }
+
         // How full the progress ring / bar looks in the preview.
         private double PreviewProgress(OverlayMode m)
         {
@@ -406,6 +413,7 @@ namespace BetterClock
             _zoomView.Apply(zs);
             _zoomView.Margin = new Thickness(_zoomView.OuterMargin);
             _zoomView.SetProgress(PreviewProgress(focus));
+            _zoomView.SetInfo(PreviewInfo(focus));
             switch (_previewMode)
             {
                 case PreviewMode.Clock: _zoomView.SetText(clockText); _zoomView.SetRole(OverlayRole.Normal); break;
@@ -435,6 +443,7 @@ namespace BetterClock
                 }
                 v.Opacity = kv.Key == focus ? 1.0 : 0.35;
                 v.SetProgress(PreviewProgress(kv.Key));
+                v.SetInfo(PreviewInfo(kv.Key));
 
                 if (kv.Key == OverlayMode.Clock) { v.SetText(clockText); v.SetRole(OverlayRole.Normal); }
                 else if (kv.Key == OverlayMode.Timer)

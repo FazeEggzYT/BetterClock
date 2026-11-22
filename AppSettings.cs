@@ -138,6 +138,22 @@ namespace BetterClock
         public double ClockShowForSeconds = 6;
         public bool ClockHoldOpen = false;
 
+        // ================= Clock extras (shown on the clock overlay) =================
+        public bool AlarmEnabled = false;
+        public string AlarmTime = "07:00";            // 24-hour HH:mm
+        public string AlarmLabel = "Alarm";
+        public bool AlarmRepeatDaily = true;
+        public string WorldClocks = "";               // Name|TimeZoneId;Name|TimeZoneId
+        public bool DateCountdownEnabled = false;
+        public string DateCountdownName = "Event";
+        public string DateCountdownTarget = "2026-12-25 18:00";
+        public bool DaysSinceEnabled = false;
+        public string DaysSinceName = "Since";
+        public string DaysSinceDate = "2026-01-01";
+        public bool SessionShow = false;
+        public bool BreakReminderEnabled = false;
+        public int BreakEveryMinutes = 45;
+
         // ================= Timer behaviour =================
         public bool TimerKeepRunningHidden = true;
         public bool TimerTargetEnabled = false;   // turns green (and beeps) when it reaches the target

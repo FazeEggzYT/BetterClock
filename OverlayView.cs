@@ -31,6 +31,7 @@ namespace BetterClock
         private readonly TextBlock _text = new TextBlock();
         private readonly TextBlock _date = new TextBlock();
         private readonly TextBlock _below = new TextBlock();
+        private readonly TextBlock _info = new TextBlock();   // extra lines (world clocks, dates, session)
         private readonly TextBlock _iconGlyph = new TextBlock();
         private readonly Image _iconImage = new Image();
         private readonly FlipDisplay _flip = new FlipDisplay();
@@ -73,6 +74,10 @@ namespace BetterClock
             _above.HorizontalAlignment = HorizontalAlignment.Center;
             _below.HorizontalAlignment = HorizontalAlignment.Center;
             _date.HorizontalAlignment = HorizontalAlignment.Center;
+            _info.HorizontalAlignment = HorizontalAlignment.Center;
+            _info.TextAlignment = TextAlignment.Center;
+            _info.Margin = new Thickness(0, 4, 0, 0);
+            _info.Visibility = Visibility.Collapsed;
             _above.Visibility = Visibility.Collapsed;
             _below.Visibility = Visibility.Collapsed;
             _date.Visibility = Visibility.Collapsed;
@@ -118,6 +123,7 @@ namespace BetterClock
             content.Children.Add(_row);
             content.Children.Add(_bar);
             content.Children.Add(_date);
+            content.Children.Add(_info);
             content.Children.Add(_below);
 
             var root = new Grid();
@@ -188,6 +194,15 @@ namespace BetterClock
             if (on == _pulse) return;
             _pulse = on;
             ApplyEffect();
+        }
+
+        // Extra lines under the numbers (one per line). Empty hides them.
+        public void SetInfo(string text)
+        {
+            text = text ?? "";
+            if (_info.Text == text) return;
+            _info.Text = text;
+            _info.Visibility = text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
         }
 
         private void UpdateAbove()
@@ -509,7 +524,7 @@ namespace BetterClock
 
             Brush extraBrush = new SolidColorBrush(ColorUtil.Parse(s.ExtraTextColor, Colors.LightGray));
             double extraSize = ColorUtil.Clamp(s.ExtraTextSize, 6, 120);
-            foreach (TextBlock tb in new TextBlock[] { _above, _below, _date })
+            foreach (TextBlock tb in new TextBlock[] { _above, _below, _date, _info })
             {
                 tb.FontFamily = new FontFamily("Segoe UI");
                 tb.FontSize = extraSize;

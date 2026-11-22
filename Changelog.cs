@@ -19,6 +19,23 @@ namespace BetterClock
 
             list.Add(new ChangelogEntry
             {
+                Version = "1.4.1",
+                Date = "21 Nov 2026",
+                Title = "Time features",
+                Items = new string[]
+                {
+                    "New: alarm clock - rings at a time you choose and shows your message on the clock.",
+                    "New: world clocks - other cities shown as lines under the clock.",
+                    "New: countdown to a date and time (for example a release day).",
+                    "New: days since a date.",
+                    "New: session timer shows how long you have been playing.",
+                    "New: break reminder every N minutes (default 45).",
+                    "New: timer results history in the Timer tab (saved when you press Reset)."
+                }
+            });
+
+            list.Add(new ChangelogEntry
+            {
                 Version = "1.4.0",
                 Date = "21 Nov 2026",
                 Title = "Countdown and timer power",

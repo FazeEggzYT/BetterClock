@@ -13,6 +13,7 @@ namespace BetterClock
         private double _progress = -1;
         private string _caption = null;
         private bool _pulse;
+        private string _info = "";
         private bool _wanted;
         private bool _move;
 
@@ -30,6 +31,7 @@ namespace BetterClock
             w.SetProgress(_progress);
             w.SetCaption(_caption);
             w.SetPulse(_pulse);
+            w.SetInfo(_info);
             w.SetMoveMode(_move);
             return w;
         }
@@ -58,6 +60,12 @@ namespace BetterClock
         {
             _caption = text;
             foreach (OverlayWindow w in _windows) w.SetCaption(text);
+        }
+
+        public void SetInfo(string text)
+        {
+            _info = text ?? "";
+            foreach (OverlayWindow w in _windows) w.SetInfo(_info);
         }
 
         public void SetPulse(bool on)

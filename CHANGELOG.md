@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.4.1
+- New: alarm clock.
+- New: world clocks.
+- New: countdown to a date and time.
+- New: days since a date.
+- New: session timer.
+- New: break reminder.
+- New: timer results history.
+
 ## v1.4.0
 - New: progress ring or bar for the countdown and the timer target.
 - New: countdown turns amber, then red, as time runs low.

@@ -87,6 +87,103 @@ namespace BetterClock
             }
             page.Children.Add(beh);
 
+            // ---- clock extras: alarm, world clocks, dates, session, breaks ----
+            if (mode == OverlayMode.Clock)
+            {
+                AnimatedSection ex = new AnimatedSection("Alarm, world clocks, dates and breaks", false);
+                ex.Body.Children.Add(Hint("These show on the clock overlay. The extra lines only appear while the clock is on screen, so tick \"Keep the clock on screen\" above to see them all the time."));
+
+                AddCheck(ex.Body, S, "Alarm clock", "AlarmEnabled", null);
+                AddText(ex.Body, S, "Alarm time (24-hour)", "AlarmTime", 90);
+                AddText(ex.Body, S, "Alarm message", "AlarmLabel", 220);
+                AddCheck(ex.Body, S, "Ring every day", "AlarmRepeatDaily", null);
+                var alarmRow = new WrapPanel();
+                alarmRow.Margin = new Thickness(0, 4, 0, 4);
+                alarmRow.Children.Add(MakeButton("Test alarm", delegate { AppHost.Controller.TestAlarm(); }));
+                alarmRow.Children.Add(MakeButton("Stop alarm", delegate { AppHost.Controller.StopAlarm(); }));
+                ex.Body.Children.Add(alarmRow);
+                ex.Body.Children.Add(Hint("Write the time like 07:30. The alarm shows the clock and plays the countdown sound (set it in the Countdown tab). The clock key or Stop alarm silences it."));
+
+                Grid wrow = AddRow(ex.Body, "World clocks");
+                var wbox = new TextBox();
+                wbox.Width = 380;
+                wbox.HorizontalAlignment = HorizontalAlignment.Left;
+                wbox.Text = S.WorldClocks ?? "";
+                wbox.TextChanged += delegate
+                {
+                    if (_loading) return;
+                    S.WorldClocks = wbox.Text;
+                    Changed();
+                };
+                Put(wrow, wbox);
+
+                Grid arow = AddRow(ex.Body, "Add a city");
+                var asp = new WrapPanel();
+                var cityBox = new ComboBox();
+                cityBox.Width = 300;
+                var zones = new List<TimeZoneInfo>(TimeZoneInfo.GetSystemTimeZones());
+                foreach (TimeZoneInfo z in zones) cityBox.Items.Add(z.DisplayName);
+                asp.Children.Add(cityBox);
+                asp.Children.Add(MakeButton("Add", delegate
+                {
+                    int i = cityBox.SelectedIndex;
+                    if (i < 0) return;
+                    string dn = zones[i].DisplayName;
+                    int cp = dn.IndexOf(')');
+                    string nm = cp >= 0 ? dn.Substring(cp + 1).Trim() : dn;
+                    int cm = nm.IndexOf(',');
+                    if (cm > 0) nm = nm.Substring(0, cm).Trim();
+                    nm = nm.Replace(";", "").Replace("|", "");
+                    string add = nm + "|" + zones[i].Id;
+                    wbox.Text = string.IsNullOrEmpty(wbox.Text) ? add : wbox.Text + ";" + add;
+                }));
+                asp.Children.Add(MakeButton("Clear", delegate { wbox.Text = ""; }));
+                Put(arow, asp);
+                ex.Body.Children.Add(Hint("Pick a place and press Add. Each one shows as a line under the clock. You can rename a place by editing the text in the box (the part before the | is the name)."));
+
+                AddCheck(ex.Body, S, "Countdown to a date and time", "DateCountdownEnabled", null);
+                AddText(ex.Body, S, "  What it is", "DateCountdownName", 160);
+                AddText(ex.Body, S, "  Date and time", "DateCountdownTarget", 160);
+                ex.Body.Children.Add(Hint("Write the date like 2026-12-25 18:00 (year-month-day hours:minutes)."));
+
+                AddCheck(ex.Body, S, "Days since a date", "DaysSinceEnabled", null);
+                AddText(ex.Body, S, "  What it is", "DaysSinceName", 160);
+                AddText(ex.Body, S, "  Date", "DaysSinceDate", 160);
+
+                AddCheck(ex.Body, S, "Show how long you have been playing (session)", "SessionShow", null);
+                var sessRow = new WrapPanel();
+                sessRow.Margin = new Thickness(0, 4, 0, 4);
+                sessRow.Children.Add(MakeButton("Restart session", delegate { AppHost.Controller.ResetSession(); }));
+                ex.Body.Children.Add(sessRow);
+                ex.Body.Children.Add(Hint("The session starts when Better Clock starts."));
+
+                AddCheck(ex.Body, S, "Break reminder", "BreakReminderEnabled", null);
+                AddNumberBox(ex.Body, S, "  Remind me every", "BreakEveryMinutes", 1, 600, "minutes");
+                ex.Body.Children.Add(Hint("Shows \"Time for a break!\" on the clock with a chime. It counts from when you turn it on or restart the session."));
+                page.Children.Add(ex);
+            }
+
+            // ---- timer results history ----
+            if (mode == OverlayMode.Timer)
+            {
+                AnimatedSection hist = new AnimatedSection("Results history", false);
+                var histText = Label("");
+                histText.Margin = new Thickness(0, 4, 0, 6);
+                Action fill = delegate
+                {
+                    string tx = TimerHistory.Text(15);
+                    histText.Text = tx.Length == 0 ? "No results yet. When you press Reset on a timer that has run, its time is saved here." : tx;
+                };
+                fill();
+                TimerHistory.Changed += fill;
+                hist.Body.Children.Add(histText);
+                var histRow = new WrapPanel();
+                histRow.Children.Add(MakeButton("Refresh", delegate { fill(); }));
+                histRow.Children.Add(MakeButton("Clear history", delegate { TimerHistory.Clear(); }));
+                hist.Body.Children.Add(histRow);
+                page.Children.Add(hist);
+            }
+
             // ---- countdown extras ----
             if (mode == OverlayMode.Countdown)
             {
