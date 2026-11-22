@@ -34,12 +34,14 @@ if not exist "%WPF%\PresentationFramework.dll" (
 )
 
 rem --- generate version info ---
+set "ASMVER=%VERSION%.0"
+for /f "tokens=1-4 delims=." %%a in ("%VERSION%") do if not "%%d"=="" set "ASMVER=%VERSION%"
 if not exist "obj" mkdir "obj"
 if not exist "dist" mkdir "dist"
 (
   echo using System.Reflection;
-  echo [assembly: AssemblyVersion^("%VERSION%.0"^)]
-  echo [assembly: AssemblyFileVersion^("%VERSION%.0"^)]
+  echo [assembly: AssemblyVersion^("%ASMVER%"^)]
+  echo [assembly: AssemblyFileVersion^("%ASMVER%"^)]
   echo [assembly: AssemblyTitle^("Better Clock"^)]
   echo [assembly: AssemblyProduct^("Better Clock"^)]
   echo namespace BetterClock { public static partial class AppInfo { public const string Version = "%VERSION%"; public const string Repo = "%REPO%"; } }

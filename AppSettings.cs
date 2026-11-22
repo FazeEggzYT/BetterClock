@@ -88,6 +88,7 @@ namespace BetterClock
         // ---- progress bar / ring, low-time colours, glow pulse ----
         public ProgressStyle ProgressStyle = ProgressStyle.None;
         public int ProgressThickness = 6;
+        public int ProgressSize = 100;           // ring size in percent
         public string WarnColor = "#FFB020";     // countdown running low
         public string DangerColor = "#FF4040";   // countdown almost out
         public string TargetColor = "#4DFF88";   // timer reached its target

@@ -236,7 +236,7 @@ namespace BetterClock
             {
                 _bar.Visibility = Visibility.Collapsed;
                 _ring.Visibility = Visibility.Visible;
-                double d = ColorUtil.Clamp(_s.FontSize * 0.95, 24, 260);
+                double d = ColorUtil.Clamp(_s.FontSize * 0.95 * ColorUtil.Clamp(_s.ProgressSize, 30, 400) / 100.0, 20, 500);
                 _ring.Width = d;
                 _ring.Height = d;
                 _ring.Margin = new Thickness(14, 0, 0, 0);
@@ -625,7 +625,7 @@ namespace BetterClock
             ApplyEffect();
 
             // ---- size ----
-            double k = ColorUtil.Clamp(s.Scale, 25, 400) / 100.0;
+            double k = ColorUtil.Clamp(s.Scale, 25, 500) / 100.0;
             LayoutTransform = new ScaleTransform(k, k);
             Margin = new Thickness(OuterMargin);
 

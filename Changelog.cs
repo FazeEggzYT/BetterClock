@@ -19,6 +19,19 @@ namespace BetterClock
 
             list.Add(new ChangelogEntry
             {
+                Version = "1.4.1.1",
+                Date = "22 Nov 2026",
+                Title = "Size controls",
+                Items = new string[]
+                {
+                    "New: Overall size slider is now at the top of every tab, and goes from 25% up to 500%.",
+                    "New: Ring size slider for the progress ring.",
+                    "Changed: the build now accepts four-part version numbers."
+                }
+            });
+
+            list.Add(new ChangelogEntry
+            {
                 Version = "1.4.1",
                 Date = "21 Nov 2026",
                 Title = "Time features",

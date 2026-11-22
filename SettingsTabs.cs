@@ -54,6 +54,7 @@ namespace BetterClock
             tools.Children.Add(MakeButton("Copy this look to the other modes", delegate { CopyLook(mode); }));
             tools.Children.Add(MakeButton("Reset this look", delegate { ResetLook(mode); }));
             page.Children.Add(tools);
+            AddSlider(page, st, "Overall size", "Scale", 25, 500, 5, " %", null);
 
             // ---- behaviour ----
             AnimatedSection beh = new AnimatedSection("Behaviour", true);
@@ -314,7 +315,6 @@ namespace BetterClock
 
             // ---- size & animation ----
             AnimatedSection size = new AnimatedSection("Size and animation", false);
-            AddSlider(size.Body, st, "Overall size", "Scale", 40, 300, 5, " %", null);
             AddSlider(size.Body, st, "Overall opacity", "OverallOpacity", 10, 100, 5, " %", null);
             AddEnumCombo(size.Body, st, "When it appears", "ShowAnimation", typeof(ShowAnimation), null);
             AddSlider(size.Body, st, "Fade time", "FadeMs", 0, 1000, 20, " ms", null);
@@ -326,6 +326,7 @@ namespace BetterClock
                 AnimatedSection prog = new AnimatedSection(mode == OverlayMode.Countdown ? "Progress ring / bar and pulse" : "Progress ring / bar", false);
                 AddEnumCombo(prog.Body, st, "Show progress as", "ProgressStyle", typeof(ProgressStyle), null);
                 AddSlider(prog.Body, st, "Thickness", "ProgressThickness", 2, 30, 1, " px", null);
+                AddSlider(prog.Body, st, "Ring size", "ProgressSize", 40, 300, 5, " %", null);
                 if (mode == OverlayMode.Countdown)
                 {
                     prog.Body.Children.Add(Hint("Bar = a thin bar under the numbers. Ring = a circle beside them. Both empty as time runs out."));

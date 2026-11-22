@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.4.1.1
+- New: Overall size slider at the top of every tab (25% to 500%).
+- New: Ring size slider for the progress ring.
+- Changed: the build now accepts four-part version numbers.
+
 ## v1.4.1
 - New: alarm clock.
 - New: world clocks.
