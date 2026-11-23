@@ -240,7 +240,6 @@ namespace BetterClock
             AddSlider(txt.Body, st, "Size", "FontSize", 12, 200, 1, " px", null);
             AddCheck(txt.Body, st, "Bold", "FontBold", null);
             AddCheck(txt.Body, st, "Italic", "FontItalic", null);
-            AddCheck(txt.Body, st, "Soft shadow behind the text", "TextShadow", null);
             AddColor(txt.Body, st, "Text colour", "TextColor", null);
             if (mode != OverlayMode.Clock)
             {
@@ -262,6 +261,8 @@ namespace BetterClock
                 : "Normal, Flip (cards), Led (seven-segment) or Terminal (retro)."));
             AddCheck(digits.Body, st, "Blinking colon", "BlinkColon", null);
             page.Children.Add(digits);
+
+            BuildEffectSections(page, st, mode);
 
             // ---- extra text, date, icon ----
             AnimatedSection extra = new AnimatedSection("Extra text, date and icon", false);
@@ -288,6 +289,8 @@ namespace BetterClock
             AddSlider(lab.Body, st, "Label size", "LabelSize", 6, 60, 1, " px", null);
             AddColor(lab.Body, st, "Label colour", "LabelColor", null);
             page.Children.Add(lab);
+
+            BuildPartSections(page, st, mode);
 
             // ---- background ----
             AnimatedSection bg = new AnimatedSection("Background", false);

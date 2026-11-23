@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.4.5
+- New: outline around the numbers (colour and thickness).
+- New: gradient colour on the numbers.
+- New: glow on the numbers (colour, size and strength).
+- New: shadow settings (colour, blur, distance, direction and opacity).
+- New: letter spacing and line height.
+- New: UPPERCASE / lowercase for the label and the small texts.
+- New: use your own font file (.ttf or .otf).
+- New: choose the separator (colon, dot, dash, space or none).
+- New: leading zero on or off (05:00 or 5:00).
+
+## v1.4.4
+- New: numbers, label, text above, text below, date, extra lines and icon each have their own font, size, colour, boldness, opacity and position.
+- New: show or hide every part separately.
+- New: choose the order of the parts and the space between them.
+- New: colour and opacity for the progress ring or bar.
+- New: icon colour and turn.
+- New: "Copy this section to the other overlays" button.
+
 ## v1.4.3
 - New: Presets tab with a theme gallery (10 looks) and your own saved presets.
 - New: Themes and My presets in the tray menu.

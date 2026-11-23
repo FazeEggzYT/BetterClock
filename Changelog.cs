@@ -19,6 +19,41 @@ namespace BetterClock
 
             list.Add(new ChangelogEntry
             {
+                Version = "1.4.5",
+                Date = "23 Nov 2026",
+                Title = "Text effects",
+                Items = new string[]
+                {
+                    "New: outline around the numbers (colour and thickness).",
+                    "New: gradient colour on the numbers.",
+                    "New: glow on the numbers (colour, size and strength).",
+                    "New: shadow settings (colour, blur, distance, direction and opacity).",
+                    "New: letter spacing and line height.",
+                    "New: UPPERCASE / lowercase for the label and the small texts.",
+                    "New: use your own font file (.ttf or .otf).",
+                    "New: choose the separator (colon, dot, dash, space or none).",
+                    "New: leading zero on or off (05:00 or 5:00)."
+                }
+            });
+
+            list.Add(new ChangelogEntry
+            {
+                Version = "1.4.4",
+                Date = "22 Nov 2026",
+                Title = "Each part on its own",
+                Items = new string[]
+                {
+                    "New: numbers, label, text above, text below, date, extra lines and icon each get their own font, size, colour, boldness, opacity and position.",
+                    "New: show or hide every part separately.",
+                    "New: choose the order of the parts and the space between them.",
+                    "New: colour and opacity for the progress ring or bar.",
+                    "New: icon colour and turn.",
+                    "New: Copy this section to the other overlays button."
+                }
+            });
+
+            list.Add(new ChangelogEntry
+            {
                 Version = "1.4.3",
                 Date = "22 Nov 2026",
                 Title = "Settings polish",

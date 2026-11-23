@@ -21,6 +21,7 @@ namespace BetterClock
         private Brush _brush = Brushes.White;
         private double _height = 50;
         private bool _hideColon;
+        public char SepChar = ':';          // the separator that blinks
 
         public void Set(string text, Brush brush, double digitHeight, bool hideColon)
         {
@@ -40,6 +41,7 @@ namespace BetterClock
         {
             if (c >= '0' && c <= '9') return DigitW;
             if (c == ':' || c == '.') return _height * 0.22;
+            if (c == '-') return DigitW * 0.7;
             if (c == ' ') return DigitW * 0.5;
             return LetterText(c, Brushes.White).Width;
         }
@@ -75,7 +77,7 @@ namespace BetterClock
                 }
                 else if (c == ':')
                 {
-                    if (!_hideColon)
+                    if (!(_hideColon && c == SepChar))
                     {
                         double s = t * 1.1;
                         dc.DrawRectangle(_brush, null, new Rect(x + (w - s) / 2, _height * 0.30, s, s));
@@ -84,8 +86,16 @@ namespace BetterClock
                 }
                 else if (c == '.')
                 {
-                    double s = t * 1.1;
-                    dc.DrawRectangle(_brush, null, new Rect(x + (w - s) / 2, _height - s, s, s));
+                    if (!(_hideColon && c == SepChar))
+                    {
+                        double s = t * 1.1;
+                        dc.DrawRectangle(_brush, null, new Rect(x + (w - s) / 2, _height - s, s, s));
+                    }
+                }
+                else if (c == '-')
+                {
+                    if (!(_hideColon && c == SepChar))
+                        dc.DrawRectangle(_brush, null, new Rect(x + w * 0.1, _height / 2 - t / 2, w * 0.8, t));
                 }
                 else if (c != ' ')
                 {
@@ -197,6 +207,12 @@ namespace BetterClock
     {
         private readonly List<TextBlock> _glyphs = new List<TextBlock>();
         private string _last = "";
+        public char SepChar = ':';          // the separator that blinks
+
+        private static bool IsSep(char c)
+        {
+            return c == ':' || c == ' ' || c == '.' || c == '-';
+        }
 
         public FlipDisplay()
         {
@@ -220,7 +236,7 @@ namespace BetterClock
                     Typography.SetNumeralAlignment(tb, FontNumeralAlignment.Tabular);
                     _glyphs.Add(tb);
 
-                    if (text[i] == ':' || text[i] == ' ' || text[i] == '.')
+                    if (IsSep(text[i]))
                     {
                         tb.Margin = new Thickness(3, 0, 3, 0);
                         Children.Add(tb);
@@ -252,12 +268,12 @@ namespace BetterClock
                 string ch = text[i].ToString();
                 tb.FontSize = fontSize * 0.9;
                 tb.Foreground = fg;
-                if (text[i] == ':') tb.Opacity = hideColon ? 0 : 1;
+                if (text[i] == SepChar) tb.Opacity = hideColon ? 0 : 1;
 
                 if (tb.Text != ch)
                 {
                     tb.Text = ch;
-                    if (!rebuild && UiAnim.Enabled && text[i] != ':')
+                    if (!rebuild && UiAnim.Enabled && !IsSep(text[i]))
                     {
                         var st = (ScaleTransform)tb.RenderTransform;
                         var a = new DoubleAnimation(0.05, 1, TimeSpan.FromMilliseconds(170));
