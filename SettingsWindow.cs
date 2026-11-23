@@ -785,6 +785,7 @@ namespace BetterClock
             foreach (FontFamily f in Fonts.SystemFontFamilies) names.Add(f.Source);
             names.Sort(StringComparer.OrdinalIgnoreCase);
             string current = (string)Reflect.Get(owner, field);
+            if (field != "FontFamily" && !names.Contains("")) names.Insert(0, "");
             if (!names.Contains(current)) names.Insert(0, current);
             foreach (string n in names) combo.Items.Add(n);
             combo.SelectedItem = current;
@@ -826,7 +827,17 @@ namespace BetterClock
             hex.TextChanged += delegate
             {
                 Color c;
-                if (ColorUtil.TryParse(hex.Text, out c))
+                if (hex.Text.Trim().Length == 0)
+                {
+                    // An empty colour means "use the default one".
+                    hex.Foreground = (Brush)FindResource("InkBrush");
+                    swatch.Background = Brushes.Transparent;
+                    if (_loading) return;
+                    Reflect.Set(owner, field, "");
+                    if (extra != null) extra();
+                    Changed();
+                }
+                else if (ColorUtil.TryParse(hex.Text, out c))
                 {
                     hex.Foreground = (Brush)FindResource("InkBrush");
                     swatch.Background = new SolidColorBrush(c);

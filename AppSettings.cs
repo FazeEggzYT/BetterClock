@@ -19,7 +19,7 @@ namespace BetterClock
     public enum CountdownPlanKind { Single, Chain, Pomodoro }
 
     // Where one overlay sits and how it looks.
-    public class ModeStyle
+    public partial class ModeStyle
     {
         // ---- where ----
         public OverlayPosition Position = OverlayPosition.TopCenter;
