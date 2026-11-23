@@ -5,6 +5,10 @@ and you can click straight through it. Everything is customisable.
 
 > Works over games in **borderless / windowed-fullscreen** mode. Games in true "exclusive fullscreen" can hide any overlay, so switch those to borderless.
 
+<img width="187" height="424" alt="image" src="https://github.com/user-attachments/assets/c51e8729-05e9-44b2-a830-8456fec63a81" />
+
+
+
 ## Features
 
 - **Clock** - shows the time for a few seconds (or until you hide it). 12/24-hour, seconds on/off.
@@ -69,6 +73,3 @@ Saved at `%APPDATA%\BetterClock\settings.ini`. You can edit it, or use the setti
 ## License
 
 MIT
-
-
-<img width="187" height="424" alt="image" src="https://github.com/user-attachments/assets/c51e8729-05e9-44b2-a830-8456fec63a81" />
