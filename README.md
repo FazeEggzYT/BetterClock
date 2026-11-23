@@ -69,3 +69,6 @@ Saved at `%APPDATA%\BetterClock\settings.ini`. You can edit it, or use the setti
 ## License
 
 MIT
+
+
+<img width="187" height="424" alt="image" src="https://github.com/user-attachments/assets/c51e8729-05e9-44b2-a830-8456fec63a81" />
