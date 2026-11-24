@@ -363,7 +363,8 @@ namespace BetterClock
                         long half = DateTime.Now.Ticks / (TimeSpan.TicksPerMillisecond * 500);
                         on = (half % 2) == 0;
                     }
-                    o.SetRole(on ? OverlayRole.Finished : OverlayRole.Normal);
+                    OverlayRole doneRole = S.CountdownOvertime ? OverlayRole.Overtime : OverlayRole.Finished;
+                    o.SetRole(on ? doneRole : OverlayRole.Normal);
                 }
                 else if (_countdown.IsRunning) o.SetRole(RunningRole(rem));
                 else if (_countdown.Elapsed.TotalSeconds >= 1) o.SetRole(OverlayRole.Paused);
