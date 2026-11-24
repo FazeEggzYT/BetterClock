@@ -57,7 +57,9 @@ namespace BetterClock
             tools.Children.Add(MakeButton("Show it on screen now", delegate { AppHost.Controller.ShowMode(mode); }));
             tools.Children.Add(MakeButton("Copy this look to the other modes", delegate { CopyLook(mode); }));
             tools.Children.Add(MakeButton("Reset this look", delegate { ResetLook(mode); }));
+            AddHistoryTools(tools);
             page.Children.Add(tools);
+            AddCheck(page, S, "Same look on all three overlays (edits are copied to the other two)", "SyncLooks", null);
             AddSlider(page, st, "Overall size", "Scale", 25, 500, 5, " %", null);
 
             // ---- behaviour ----
@@ -231,6 +233,8 @@ namespace BetterClock
             moveRow.Children.Add(MakeButton("Move with the mouse", delegate { AppHost.SetMoveMode(true); }));
             moveRow.Children.Add(MakeButton("Lock (stop moving)", delegate { AppHost.SetMoveMode(false); }));
             pos.Body.Children.Add(moveRow);
+            AddSlider(pos.Body, S, "Snap to a grid", "SnapGrid", 0, 100, 5, " px", null);
+            AddCheck(pos.Body, S, "Snap to the screen edges and centre", "SnapEdges", null);
             pos.Body.Children.Add(Hint("Move mode shows all three overlays and lets you drag them anywhere, even onto another monitor. Lock puts them back to click-through."));
             page.Children.Add(pos);
 
@@ -292,40 +296,9 @@ namespace BetterClock
 
             BuildPartSections(page, st, mode);
 
-            // ---- background ----
-            AnimatedSection bg = new AnimatedSection("Background", false);
-            AddEnumCombo(bg.Body, st, "Style", "BackgroundStyle", typeof(BackgroundStyle), null);
-            AddColor(bg.Body, st, "Colour", "BackgroundColor", null);
-            AddColor(bg.Body, st, "Second colour (gradient)", "BackgroundColor2", null);
-            AddSlider(bg.Body, st, "Gradient angle", "GradientAngle", 0, 360, 5, " deg", null);
-            AddSlider(bg.Body, st, "Opacity", "BackgroundOpacity", 0, 100, 5, " %", null);
-            page.Children.Add(bg);
+            BuildShapeSections(page, st, mode);
 
-            // ---- picture behind ----
-            AnimatedSection pic = new AnimatedSection("Picture behind the numbers", false);
-            AddFilePicker(pic.Body, st, "Picture", "BackgroundImagePath", "Pictures|*.png;*.jpg;*.jpeg;*.bmp;*.gif|All files|*.*");
-            AddSlider(pic.Body, st, "Picture opacity", "BackgroundImageOpacity", 0, 100, 5, " %", null);
-            AddEnumCombo(pic.Body, st, "Picture fit", "BackgroundImageFit", typeof(ImageFit), null);
-            pic.Body.Children.Add(Hint("Cover fills the whole pill, Fit shows all of it, Stretch squeezes it to the pill."));
-            page.Children.Add(pic);
-
-            // ---- shape ----
-            AnimatedSection shape = new AnimatedSection("Shape, border and glow", false);
-            AddSlider(shape.Body, st, "Corner roundness", "CornerRadius", 0, 100, 1, " px", null);
-            AddSlider(shape.Body, st, "Padding left / right", "PaddingH", 0, 120, 1, " px", null);
-            AddSlider(shape.Body, st, "Padding top / bottom", "PaddingV", 0, 80, 1, " px", null);
-            AddColor(shape.Body, st, "Border colour", "BorderColor", null);
-            AddSlider(shape.Body, st, "Border thickness", "BorderThickness", 0, 12, 1, " px", null);
-            AddCheck(shape.Body, st, "Glow / shadow around it", "ShadowEnabled", null);
-            AddSlider(shape.Body, st, "Glow size", "ShadowBlur", 0, 60, 1, " px", null);
-            page.Children.Add(shape);
-
-            // ---- size & animation ----
-            AnimatedSection size = new AnimatedSection("Size and animation", false);
-            AddSlider(size.Body, st, "Overall opacity", "OverallOpacity", 10, 100, 5, " %", null);
-            AddEnumCombo(size.Body, st, "When it appears", "ShowAnimation", typeof(ShowAnimation), null);
-            AddSlider(size.Body, st, "Fade time", "FadeMs", 0, 1000, 20, " ms", null);
-            page.Children.Add(size);
+            BuildAnimSections(page, st, mode);
 
             // ---- progress ring / bar and pulse ----
             if (mode != OverlayMode.Clock)
@@ -339,6 +312,8 @@ namespace BetterClock
                     prog.Body.Children.Add(Hint("Bar = a thin bar under the numbers. Ring = a circle beside them. Both empty as time runs out."));
                     AddSlider(prog.Body, st, "Glow pulses in the last", "PulseSeconds", 0, 60, 1, " s", null);
                     AddColor(prog.Body, st, "Pulse colour", "PulseColor", null);
+                    AddSlider(prog.Body, st, "Pulse speed (time per beat)", "PulseSpeed", 100, 2000, 50, " ms", null);
+                    AddSlider(prog.Body, st, "Pulse size", "PulseSize", 10, 80, 1, " px", null);
                     prog.Body.Children.Add(Hint("0 turns the pulse off."));
                 }
                 else
@@ -347,6 +322,8 @@ namespace BetterClock
                 }
                 page.Children.Add(prog);
             }
+
+            BuildStateSections(page, st, mode);
 
             AddResetButtons(page, mode);
         }
@@ -449,6 +426,7 @@ namespace BetterClock
             }));
             mine.Body.Children.Add(openRow);
             page.Children.Add(mine);
+            BuildShareSection(page);
         }
 
         // ======================================================================== search and reset
@@ -1094,6 +1072,7 @@ namespace BetterClock
             var anim = new AnimatedSection("Animations and size", true);
             AddCheck(anim.Body, S, "Animations", "AnimationsEnabled", delegate { ReapplyTheme(); });
             AddSlider(anim.Body, S, "Animation speed", "AnimationSpeed", 50, 250, 10, " %", delegate { ReapplyTheme(); });
+            AddCheck(anim.Body, S, "Compact settings (hide the help lines on the Clock, Timer and Countdown pages)", "CompactSettings", delegate(bool on) { RefillAllModes(); });
             AddSlider(anim.Body, S, "Window size (UI scale)", "UiScale", 80, 150, 5, " %", delegate { ReapplyTheme(); });
             page.Children.Add(anim);
 

@@ -21,7 +21,8 @@ namespace BetterClock
         Finished,
         Warning,   // countdown running low
         Danger,    // countdown almost out
-        Target     // timer reached its target
+        Target,    // timer reached its target
+        Overtime   // countdown counting up after zero
     }
 
     public class OverlayView : Border
@@ -37,7 +38,12 @@ namespace BetterClock
         private readonly FlipDisplay _flip = new FlipDisplay();
         private readonly SegmentDisplay _seg = new SegmentDisplay();
         private readonly AnalogFace _analog = new AnalogFace();
-        private readonly Border _imgLayer = new Border();
+        private readonly ShapeLayer _shape = new ShapeLayer();        // custom shapes and border styles
+        private readonly ShapeLayer _picLayer = new ShapeLayer();     // picture behind the numbers
+        private readonly ShapeLayer _tintLayer = new ShapeLayer();    // colour over the picture
+        private readonly ShapeLayer _texLayer = new ShapeLayer();     // noise / stripes / dots / grid
+        private readonly ShapeLayer _innerLayer = new ShapeLayer();   // inner glow
+        private readonly ShapeLayer _glassLayer = new ShapeLayer();   // glass shine
         private readonly StackPanel _row = new StackPanel();
         private readonly StackPanel _content = new StackPanel();
         private readonly NumberText _fx = new NumberText();      // numbers with outline / gradient / spacing
@@ -50,7 +56,13 @@ namespace BetterClock
         private OverlayRole _role = OverlayRole.Normal;
         private string _raw = "00:00";
         private string _shown = null;
+        private readonly SolidColorBrush _fgBrush = new SolidColorBrush(Colors.White);   // lives for ever, so its colour can fade
         private Brush _fg = Brushes.White;
+        private ModeStyle _base = new ModeStyle();    // the settings as chosen (before any state look)
+        private string _sig;                          // what was drawn last (to skip needless redraws)
+        private string _lastDigits;
+        public bool ForceNight;                    // the settings preview can show the night look
+        private int _nightMinute = -1;
         private readonly Grid _stage = new Grid();
 
         // progress ring / bar, caption, glow pulse
@@ -129,7 +141,12 @@ namespace BetterClock
 
             _content.VerticalAlignment = VerticalAlignment.Center;
             var root = new Grid();
-            root.Children.Add(_imgLayer);
+            root.Children.Add(_shape);
+            root.Children.Add(_picLayer);
+            root.Children.Add(_tintLayer);
+            root.Children.Add(_texLayer);
+            root.Children.Add(_innerLayer);
+            root.Children.Add(_glassLayer);
             root.Children.Add(_content);
             _moveOutline.IsHitTestVisible = false;
             _moveOutline.Visibility = Visibility.Collapsed;
@@ -145,7 +162,10 @@ namespace BetterClock
                 int glow = _s.ShadowEnabled ? ColorUtil.Clamp(_s.ShadowBlur, 0, 60) : 0;
                 int numberGlow = ColorUtil.Clamp(_s.NumberGlowSize, 0, 60);
                 if (numberGlow > glow) glow = numberGlow;
-                if (Kind == OverlayMode.Countdown && _s.PulseSeconds > 0 && glow < 40) glow = 40;   // room for the pulse
+                if (_s.ShadowEnabled) glow += Math.Max(Math.Abs(ColorUtil.Clamp(_s.ShadowOffsetX, -60, 60)), Math.Abs(ColorUtil.Clamp(_s.ShadowOffsetY, -60, 60)));
+                if (_s.Breathe == BreatheKind.Glow && glow < _s.BreatheAmount) glow = ColorUtil.Clamp(_s.BreatheAmount, 0, 60);
+                int pulseRoom = ColorUtil.Clamp(_s.PulseSize, 10, 80);
+                if (Kind == OverlayMode.Countdown && _s.PulseSeconds > 0 && glow < pulseRoom) glow = pulseRoom;   // room for the pulse
                 return 12 + glow;
             }
         }
@@ -162,17 +182,71 @@ namespace BetterClock
         public void SetText(string text)
         {
             _raw = text;
+            CheckNight();
             Refresh();
         }
 
         public void SetRole(OverlayRole role)
         {
-            if (role == _role) return;
+            if (role == _role)
+            {
+                CheckNight();
+                return;
+            }
             _role = role;
-            _fg = new SolidColorBrush(RoleColor());
+            Rebuild(false, true);     // a state can have its own look
+            SetFg(true);
             Refresh();
             UpdateProgress();
             ApplyNumberGlow();
+            ApplyWarn();
+        }
+
+        // The night look switches on and off by the clock.
+        private void CheckNight()
+        {
+            if (!_base.NightOn) return;
+            int m = DateTime.Now.Minute;
+            if (m == _nightMinute) return;
+            _nightMinute = m;
+            Rebuild(false, true);
+        }
+
+        private bool AnimOn { get { return _s.AnimationsOn && UiAnim.Enabled; } }
+
+        private double SpeedFactor { get { return 100.0 / ColorUtil.Clamp(_s.AnimSpeed, 25, 400); } }
+
+        private Duration Ms(double ms)
+        {
+            return new Duration(TimeSpan.FromMilliseconds(Math.Max(1, ms * SpeedFactor)));
+        }
+
+        private IEasingFunction MakeEase()
+        {
+            switch (_s.AnimEasing)
+            {
+                case EaseKind.Linear: return null;
+                case EaseKind.Snappy: return new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 6 };
+                case EaseKind.Bouncy: return new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.6 };
+                default: return new CubicEase { EasingMode = EasingMode.EaseOut };
+            }
+        }
+
+        // The colour of the numbers. With "colour fade" it glides to the new colour.
+        private void SetFg(bool animate)
+        {
+            Color target = RoleColor();
+            if (animate && AnimOn && _s.ColorFade)
+            {
+                var ca = new ColorAnimation(_fgBrush.Color, target, Ms(ColorUtil.Clamp(_s.ColorFadeMs, 50, 3000)));
+                _fgBrush.BeginAnimation(SolidColorBrush.ColorProperty, ca);
+            }
+            else
+            {
+                _fgBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
+                _fgBrush.Color = target;
+            }
+            _fg = _fgBrush;
         }
 
         // 0..1 = fill the ring / bar that far, -1 = hide it.
@@ -304,18 +378,39 @@ namespace BetterClock
                 sh.Color = ColorUtil.Parse(_s.PulseColor, Colors.Red);
                 sh.BlurRadius = 8;
                 Effect = sh;
-                var a = new DoubleAnimation(8, 40, TimeSpan.FromMilliseconds(450));
+                var a = new DoubleAnimation(8, ColorUtil.Clamp(_s.PulseSize, 10, 80), new Duration(TimeSpan.FromMilliseconds(ColorUtil.Clamp(_s.PulseSpeed, 100, 3000))));
                 a.AutoReverse = true;
                 a.RepeatBehavior = RepeatBehavior.Forever;
+                sh.BeginAnimation(DropShadowEffect.BlurRadiusProperty, a);
+            }
+            else if (AnimOn && _s.Breathe == BreatheKind.Glow)
+            {
+                // an idle glow that slowly breathes in and out
+                var sh = new DropShadowEffect();
+                sh.ShadowDepth = 0;
+                sh.Opacity = 1;
+                sh.Color = ColorUtil.Parse(_s.BreatheColor, Colors.DeepSkyBlue);
+                sh.BlurRadius = 2;
+                Effect = sh;
+                var a = new DoubleAnimation(2, ColorUtil.Clamp(_s.BreatheAmount, 3, 60), Ms(ColorUtil.Clamp(_s.BreatheSeconds, 1, 30) * 500.0));
+                a.AutoReverse = true;
+                a.RepeatBehavior = RepeatBehavior.Forever;
+                a.EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut };
+                Timeline.SetDesiredFrameRate(a, 30);
                 sh.BeginAnimation(DropShadowEffect.BlurRadiusProperty, a);
             }
             else if (_s.ShadowEnabled)
             {
                 var sh = new DropShadowEffect();
                 sh.BlurRadius = ColorUtil.Clamp(_s.ShadowBlur, 0, 60);
-                sh.ShadowDepth = 0;
-                sh.Opacity = 0.7;
-                sh.Color = Colors.Black;
+                double dx = ColorUtil.Clamp(_s.ShadowOffsetX, -60, 60);
+                double dy = ColorUtil.Clamp(_s.ShadowOffsetY, -60, 60);
+                sh.ShadowDepth = Math.Sqrt(dx * dx + dy * dy);
+                double dir = sh.ShadowDepth > 0 ? Math.Atan2(-dy, dx) * 180.0 / Math.PI : 0;
+                if (dir < 0) dir += 360;
+                sh.Direction = dir;
+                sh.Opacity = ColorUtil.Clamp(_s.ShadowOpacity, 0, 100) / 100.0;
+                sh.Color = ColorUtil.Parse(_s.ShadowColor, Colors.Black);
                 Effect = sh;
             }
             else
@@ -350,27 +445,82 @@ namespace BetterClock
         public void PlayShow(ShowAnimation anim, OverlayPosition pos)
         {
             RenderTransformOrigin = new Point(0.5, 0.5);
+            if (!_s.AnimationsOn)
+            {
+                RenderTransform = Transform.Identity;
+                return;
+            }
+            IEasingFunction ease = MakeEase();
             if (anim == ShowAnimation.Slide)
             {
                 double dy = (int)pos / 3 == 2 ? 24 : -24;
                 var tt = new TranslateTransform(0, dy);
                 RenderTransform = tt;
-                var a = new DoubleAnimation(dy, 0, TimeSpan.FromMilliseconds(260));
-                a.EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut };
+                var a = new DoubleAnimation(dy, 0, Ms(260));
+                a.EasingFunction = ease;
                 tt.BeginAnimation(TranslateTransform.YProperty, a);
             }
             else if (anim == ShowAnimation.Pop)
             {
                 var st = new ScaleTransform(0.8, 0.8);
                 RenderTransform = st;
-                var a = new DoubleAnimation(0.8, 1, TimeSpan.FromMilliseconds(280));
+                var a = new DoubleAnimation(0.8, 1, Ms(280));
                 a.EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.7 };
+                st.BeginAnimation(ScaleTransform.ScaleXProperty, a);
+                st.BeginAnimation(ScaleTransform.ScaleYProperty, a);
+            }
+            else if (anim == ShowAnimation.Zoom)
+            {
+                var st = new ScaleTransform(0.3, 0.3);
+                RenderTransform = st;
+                var a = new DoubleAnimation(0.3, 1, Ms(320));
+                a.EasingFunction = ease;
+                st.BeginAnimation(ScaleTransform.ScaleXProperty, a);
+                st.BeginAnimation(ScaleTransform.ScaleYProperty, a);
+            }
+            else if (anim == ShowAnimation.Drop)
+            {
+                var tt = new TranslateTransform(0, -80);
+                RenderTransform = tt;
+                var a = new DoubleAnimation(-80, 0, Ms(520));
+                a.EasingFunction = new BounceEase { EasingMode = EasingMode.EaseOut, Bounces = 2, Bounciness = 3 };
+                tt.BeginAnimation(TranslateTransform.YProperty, a);
+            }
+            else if (anim == ShowAnimation.Bounce)
+            {
+                var st = new ScaleTransform(0.5, 0.5);
+                RenderTransform = st;
+                var a = new DoubleAnimation(0.5, 1, Ms(600));
+                a.EasingFunction = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 2, Springiness = 4 };
                 st.BeginAnimation(ScaleTransform.ScaleXProperty, a);
                 st.BeginAnimation(ScaleTransform.ScaleYProperty, a);
             }
             else
             {
                 RenderTransform = Transform.Identity;
+            }
+        }
+
+        // The hide animation (the window fades at the same time).
+        public void PlayHide(HideAnim anim, OverlayPosition pos, TimeSpan time)
+        {
+            if (time.TotalMilliseconds < 1 || !_s.AnimationsOn) return;
+            RenderTransformOrigin = new Point(0.5, 0.5);
+            var d = new Duration(time);
+            if (anim == HideAnim.Slide)
+            {
+                double dy = (int)pos / 3 == 2 ? 24 : -24;
+                var tt = new TranslateTransform(0, 0);
+                RenderTransform = tt;
+                tt.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, dy, d));
+            }
+            else if (anim == HideAnim.Shrink)
+            {
+                var st = new ScaleTransform(1, 1);
+                RenderTransform = st;
+                var a = new DoubleAnimation(1, 0.6, d);
+                st.BeginAnimation(ScaleTransform.ScaleXProperty, a);
+                st.BeginAnimation(ScaleTransform.ScaleYProperty, a);
             }
         }
 
@@ -381,6 +531,7 @@ namespace BetterClock
                 case OverlayRole.Running: return ColorUtil.Parse(_s.RunningColor, Colors.LightGreen);
                 case OverlayRole.Paused: return ColorUtil.Parse(_s.PausedColor, Colors.Orange);
                 case OverlayRole.Finished: return ColorUtil.Parse(_s.FinishedColor, Colors.Red);
+                case OverlayRole.Overtime: return ColorUtil.Parse(_s.FinishedColor, Colors.Red);
                 case OverlayRole.Warning: return ColorUtil.Parse(_s.WarnColor, Colors.Orange);
                 case OverlayRole.Danger: return ColorUtil.Parse(_s.DangerColor, Colors.Red);
                 case OverlayRole.Target: return ColorUtil.Parse(_s.TargetColor, Colors.LimeGreen);
@@ -403,6 +554,11 @@ namespace BetterClock
             double size = ColorUtil.Clamp(_s.FontSize, 8, 300);
             string digits = FormatDigits(_raw);
             char sep = SepChar;
+            if (style != DigitStyle.Analog && style != DigitStyle.Flip)
+            {
+                if (_lastDigits != null && digits != _lastDigits) PlayDigitChange();
+                _lastDigits = digits;
+            }
             bool textStyle = style == DigitStyle.Normal || style == DigitStyle.Terminal;
             bool fx = textStyle && UseFx;
 
@@ -434,7 +590,7 @@ namespace BetterClock
                 if (fx)
                 {
                     _fx.SetText(shown, (blink && sep != '\0') ? sep.ToString() : "");
-                    _fx.SetFill(RoleColor(), _s.NumberGradient, ColorUtil.Parse(_s.NumberColor2, Colors.HotPink), _s.NumberGradientAngle);
+                    _fx.SetFill(_fgBrush.Color, _s.NumberGradient, ColorUtil.Parse(_s.NumberColor2, Colors.HotPink), _s.NumberGradientAngle);
                 }
                 else
                 {
@@ -573,12 +729,35 @@ namespace BetterClock
 
             _content.Children.Clear();
             double space = ColorUtil.Clamp(_s.PartSpacing, 0, 60);
+            bool side = _s.Layout == LayoutDirection.Horizontal;
+            _content.Orientation = side ? Orientation.Horizontal : Orientation.Vertical;
+            HorizontalAlignment ha = HorizontalAlignment.Center;
+            if (_s.PartAlign == PartAlignment.Left) ha = HorizontalAlignment.Left;
+            else if (_s.PartAlign == PartAlignment.Right) ha = HorizontalAlignment.Right;
+            VerticalAlignment va = VerticalAlignment.Center;
+            if (_s.PartAlign == PartAlignment.Left) va = VerticalAlignment.Top;
+            else if (_s.PartAlign == PartAlignment.Right) va = VerticalAlignment.Bottom;
+            _info.TextAlignment = _s.PartAlign == PartAlignment.Left ? TextAlignment.Left
+                : (_s.PartAlign == PartAlignment.Right ? TextAlignment.Right : TextAlignment.Center);
             for (int i = 0; i < order.Count; i++)
             {
-                UIElement part = map[order[i]];
-                double top = i == 0 ? 0 : space;
-                if (order[i] == "bar") top += 4;
-                ((FrameworkElement)part).Margin = new Thickness(0, top, 0, 0);
+                var part = (FrameworkElement)map[order[i]];
+                double gap = i == 0 ? 0 : space;
+                bool isBar = order[i] == "bar";
+                if (side)
+                {
+                    part.Margin = new Thickness(gap, 0, 0, 0);
+                    part.VerticalAlignment = va;
+                    part.HorizontalAlignment = HorizontalAlignment.Left;
+                    if (isBar) part.Width = 90;
+                }
+                else
+                {
+                    part.Margin = new Thickness(0, gap + (isBar ? 4 : 0), 0, 0);
+                    part.VerticalAlignment = VerticalAlignment.Stretch;
+                    part.HorizontalAlignment = isBar ? HorizontalAlignment.Stretch : ha;
+                    if (isBar) part.Width = double.NaN;
+                }
                 _content.Children.Add(part);
             }
         }
@@ -657,12 +836,259 @@ namespace BetterClock
             return g;
         }
 
+        // ------------------------------------------------------------ background and shape (1.4.6)
+
+        // A circle is always as wide as it is tall.
+        protected override Size MeasureOverride(Size constraint)
+        {
+            Size size = base.MeasureOverride(constraint);
+            if (_s.Shape == PillShape.Circle)
+            {
+                double m = Math.Max(size.Width, size.Height);
+                return new Size(m, m);
+            }
+            return size;
+        }
+
+        private static void Lay(ShapeLayer layer, Brush fill, PillShape shape, double[] r, double inset, Thickness over)
+        {
+            if (fill == null)
+            {
+                layer.Visibility = Visibility.Collapsed;
+                return;
+            }
+            layer.Margin = over;
+            layer.Set(shape, r[0], r[1], r[2], r[3], inset, fill, null, 0, BorderLine.Solid);
+            layer.Visibility = Visibility.Visible;
+        }
+
+        // The fill of the pill: solid, gradient (two or three colours) or radial. Null = none.
+        private static Brush MakeFill(ModeStyle s, bool animate)
+        {
+            if (s.BackgroundStyle == BackgroundStyle.None) return null;
+            Color c1 = ColorUtil.WithAlpha(ColorUtil.Parse(s.BackgroundColor, Color.FromRgb(0x10, 0x10, 0x18)), s.BackgroundOpacity);
+            if (s.BackgroundStyle == BackgroundStyle.Solid) return new SolidColorBrush(c1);
+
+            Color c2 = ColorUtil.WithAlpha(ColorUtil.Parse(s.BackgroundColor2, Color.FromRgb(0x2A, 0x16, 0x50)), s.BackgroundOpacity);
+            var stops = new GradientStopCollection();
+            stops.Add(new GradientStop(c1, 0));
+            if (!string.IsNullOrEmpty(s.BackgroundColor3))
+                stops.Add(new GradientStop(ColorUtil.WithAlpha(ColorUtil.Parse(s.BackgroundColor3, Colors.Purple), s.BackgroundOpacity), 0.5));
+            stops.Add(new GradientStop(c2, 1));
+            if (s.BackgroundStyle == BackgroundStyle.Radial) return new RadialGradientBrush(stops);
+            var lg = new LinearGradientBrush(stops, s.GradientAngle);
+            if (animate && s.AnimatedGradient)
+            {
+                // the gradient slowly turns round
+                var rt = new RotateTransform(0, 0.5, 0.5);
+                lg.RelativeTransform = rt;
+                var a = new DoubleAnimation(0, 360, new Duration(TimeSpan.FromSeconds(ColorUtil.Clamp(s.GradientSeconds, 1, 120) * 100.0 / ColorUtil.Clamp(s.AnimSpeed, 25, 400))));
+                a.RepeatBehavior = RepeatBehavior.Forever;
+                Timeline.SetDesiredFrameRate(a, 20);
+                rt.BeginAnimation(RotateTransform.AngleProperty, a);
+            }
+            return lg;
+        }
+
+        private static Brush MakeBorderBrush(ModeStyle s)
+        {
+            Color b1 = ColorUtil.WithAlpha(ColorUtil.Parse(s.BorderColor, Colors.White), s.BorderOpacity);
+            if (!s.BorderGradient) return new SolidColorBrush(b1);
+            Color b2 = ColorUtil.WithAlpha(ColorUtil.Parse(s.BorderColor2, Colors.White), s.BorderOpacity);
+            return new LinearGradientBrush(b1, b2, s.BorderGradientAngle);
+        }
+
+        // A soft glow along the inside edge of the pill.
+        private static Brush MakeInnerGlow(ModeStyle s)
+        {
+            if (s.InnerGlowSize <= 0) return null;
+            Color gc = ColorUtil.Parse(s.InnerGlowColor, Colors.DeepSkyBlue);
+            double size = ColorUtil.Clamp(s.InnerGlowSize, 1, 100) / 100.0;
+            var rb = new RadialGradientBrush();
+            rb.GradientStops.Add(new GradientStop(Color.FromArgb(0, gc.R, gc.G, gc.B), Math.Max(0.0, 1.0 - size)));
+            rb.GradientStops.Add(new GradientStop(ColorUtil.WithAlpha(gc, s.InnerGlowOpacity), 1.0));
+            return rb;
+        }
+
+        // A shine on the top half, like glass.
+        private static Brush MakeGlass(ModeStyle s)
+        {
+            if (!s.Glass) return null;
+            double a = ColorUtil.Clamp(s.GlassStrength, 0, 100) / 100.0;
+            var lg = new LinearGradientBrush();
+            lg.StartPoint = new Point(0, 0);
+            lg.EndPoint = new Point(0, 1);
+            lg.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(255 * 0.55 * a), 255, 255, 255), 0));
+            lg.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(255 * 0.12 * a), 255, 255, 255), 0.5));
+            lg.GradientStops.Add(new GradientStop(Color.FromArgb(0, 255, 255, 255), 0.5));
+            lg.GradientStops.Add(new GradientStop(Color.FromArgb(0, 255, 255, 255), 1));
+            return lg;
+        }
+
+        // Noise, stripes, dots or a grid, tiled over the pill.
+        private static Brush MakeTexture(ModeStyle s)
+        {
+            if (s.Texture == TextureStyle.None) return null;
+            double tile = ColorUtil.Clamp(s.TextureSize, 3, 60);
+            Color c = ColorUtil.Parse(s.TextureColor, Colors.White);
+            Brush ink = new SolidColorBrush(c);
+            var group = new DrawingGroup();
+            double tileSize = tile;
+
+            if (s.Texture == TextureStyle.Stripes)
+            {
+                group.Children.Add(new GeometryDrawing(ink, null, new RectangleGeometry(new Rect(0, 0, tile, tile / 2))));
+            }
+            else if (s.Texture == TextureStyle.Dots)
+            {
+                group.Children.Add(new GeometryDrawing(ink, null, new EllipseGeometry(new Point(tile / 2, tile / 2), tile * 0.18, tile * 0.18)));
+            }
+            else if (s.Texture == TextureStyle.Grid)
+            {
+                group.Children.Add(new GeometryDrawing(ink, null, new RectangleGeometry(new Rect(0, 0, tile, 1))));
+                group.Children.Add(new GeometryDrawing(ink, null, new RectangleGeometry(new Rect(0, 0, 1, tile))));
+            }
+            else
+            {
+                tileSize = 64;
+                var rnd = new Random(7);
+                double dot = Math.Max(1, tile / 5);
+                for (int i = 0; i < 160; i++)
+                {
+                    Brush b = new SolidColorBrush(Color.FromArgb((byte)rnd.Next(60, 255), c.R, c.G, c.B));
+                    group.Children.Add(new GeometryDrawing(b, null, new RectangleGeometry(new Rect(rnd.Next(0, 64), rnd.Next(0, 64), dot, dot))));
+                }
+            }
+
+            var db = new DrawingBrush(group);
+            db.TileMode = TileMode.Tile;
+            db.ViewboxUnits = BrushMappingMode.Absolute;
+            db.ViewportUnits = BrushMappingMode.Absolute;
+            db.Viewbox = new Rect(0, 0, tileSize, tileSize);
+            db.Viewport = new Rect(0, 0, tileSize, tileSize);
+            db.Opacity = ColorUtil.Clamp(s.TextureOpacity, 0, 100) / 100.0;
+            if (s.Texture == TextureStyle.Stripes) db.Transform = new RotateTransform(45);
+            return db;
+        }
+
+        // ------------------------------------------------------------ animations (1.4.7)
+
+        // When the numbers change: fade, slide, flip or pop.
+        private void PlayDigitChange()
+        {
+            if (!AnimOn || _s.DigitAnimation == DigitAnim.None) return;
+            Duration d = Ms(200);
+            IEasingFunction ease = MakeEase();
+            _g3.RenderTransformOrigin = new Point(0.5, 0.5);
+            if (_s.DigitAnimation == DigitAnim.Fade)
+            {
+                var a = new DoubleAnimation(0.2, 1, d);
+                _g3.BeginAnimation(UIElement.OpacityProperty, a);
+            }
+            else if (_s.DigitAnimation == DigitAnim.Slide)
+            {
+                var tt = new TranslateTransform(0, 12);
+                _g3.RenderTransform = tt;
+                var a = new DoubleAnimation(12, 0, d);
+                a.EasingFunction = ease;
+                tt.BeginAnimation(TranslateTransform.YProperty, a);
+            }
+            else if (_s.DigitAnimation == DigitAnim.Pop)
+            {
+                var st = new ScaleTransform(0.8, 0.8);
+                _g3.RenderTransform = st;
+                var a = new DoubleAnimation(0.8, 1, d);
+                a.EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.6 };
+                st.BeginAnimation(ScaleTransform.ScaleXProperty, a);
+                st.BeginAnimation(ScaleTransform.ScaleYProperty, a);
+            }
+            else
+            {
+                var st = new ScaleTransform(1, 0.1);
+                _g3.RenderTransform = st;
+                var a = new DoubleAnimation(0.1, 1, d);
+                a.EasingFunction = ease;
+                st.BeginAnimation(ScaleTransform.ScaleYProperty, a);
+            }
+        }
+
+        // The numbers slowly grow and shrink while idle.
+        private void ApplyBreatheSize()
+        {
+            _g2.RenderTransformOrigin = new Point(0.5, 0.5);
+            if (AnimOn && _s.Breathe == BreatheKind.Size)
+            {
+                double to = 1 + ColorUtil.Clamp(_s.BreatheSize, 1, 30) / 100.0;
+                var st = new ScaleTransform(1, 1);
+                _g2.RenderTransform = st;
+                var a = new DoubleAnimation(1, to, Ms(ColorUtil.Clamp(_s.BreatheSeconds, 1, 30) * 500.0));
+                a.AutoReverse = true;
+                a.RepeatBehavior = RepeatBehavior.Forever;
+                a.EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut };
+                Timeline.SetDesiredFrameRate(a, 30);
+                st.BeginAnimation(ScaleTransform.ScaleXProperty, a);
+                st.BeginAnimation(ScaleTransform.ScaleYProperty, a);
+            }
+            else
+            {
+                _g2.RenderTransform = null;
+            }
+        }
+
+        // Shake or flash while a countdown is almost out.
+        private void ApplyWarn()
+        {
+            _content.BeginAnimation(UIElement.OpacityProperty, null);
+            _content.Opacity = 1;
+            _content.RenderTransform = null;
+            if (!AnimOn || _role != OverlayRole.Danger || _s.WarnAnimation == WarnAnim.None) return;
+
+            if (_s.WarnAnimation == WarnAnim.Shake)
+            {
+                var tt = new TranslateTransform(0, 0);
+                _content.RenderTransform = tt;
+                var a = new DoubleAnimationUsingKeyFrames();
+                a.Duration = new Duration(TimeSpan.FromMilliseconds(420 * SpeedFactor));
+                a.RepeatBehavior = RepeatBehavior.Forever;
+                double[] xs = { 0, -4, 4, -3, 3, 0 };
+                for (int i = 0; i < xs.Length; i++)
+                    a.KeyFrames.Add(new LinearDoubleKeyFrame(xs[i], KeyTime.FromPercent(i / (double)(xs.Length - 1))));
+                tt.BeginAnimation(TranslateTransform.XProperty, a);
+            }
+            else
+            {
+                var a = new DoubleAnimation(1, 0.25, Ms(350));
+                a.AutoReverse = true;
+                a.RepeatBehavior = RepeatBehavior.Forever;
+                _content.BeginAnimation(UIElement.OpacityProperty, a);
+            }
+        }
+
         // Re-reads every appearance setting.
         public void Apply(ModeStyle s)
         {
+            _base = s;
+            Rebuild(false, false);
+        }
+
+        // Draws the look. A state (low time, finished, night...) can change part of it.
+        // Nothing is redrawn when nothing changed.
+        private void Rebuild(bool force, bool keepColour)
+        {
+            ModeStyle eff = StateLooks.Resolve(_base, _role, DateTime.Now, ForceNight);
+            string sig = Kind + "|" + eff.Signature();
+            if (!force && sig == _sig) return;
+            _sig = sig;
+            ApplyStyle(eff, !keepColour);
+        }
+
+        private void ApplyStyle(ModeStyle s, bool resetColour)
+        {
             _s = s;
             _shown = null;
-            _fg = new SolidColorBrush(RoleColor());
+            _lastDigits = null;
+            if (resetColour) SetFg(false);
+            else _fg = _fgBrush;
 
             // ---- text ----
             FontFamily family;
@@ -775,33 +1201,66 @@ namespace BetterClock
 
             ApplyOrder();
 
-            // ---- background ----
-            Color bg1 = ColorUtil.WithAlpha(ColorUtil.Parse(s.BackgroundColor, Color.FromRgb(0x10, 0x10, 0x18)), s.BackgroundOpacity);
-            Color bg2 = ColorUtil.WithAlpha(ColorUtil.Parse(s.BackgroundColor2, Color.FromRgb(0x2A, 0x16, 0x50)), s.BackgroundOpacity);
-            if (s.BackgroundStyle == BackgroundStyle.None)
-            {
-                Background = Brushes.Transparent;
-            }
-            else if (s.BackgroundStyle == BackgroundStyle.Gradient)
-            {
-                Background = new LinearGradientBrush(bg1, bg2, s.GradientAngle);
-            }
-            else
-            {
-                Background = new SolidColorBrush(bg1);
-            }
+            // fixed size (0 = automatic)
+            Width = s.FixedWidth > 0 ? ColorUtil.Clamp(s.FixedWidth, 20, 3000) : double.NaN;
+            Height = s.FixedHeight > 0 ? ColorUtil.Clamp(s.FixedHeight, 20, 3000) : double.NaN;
+            MinWidth = s.MinWidthPx > 0 ? ColorUtil.Clamp(s.MinWidthPx, 0, 3000) : 0;
 
-            // ---- shape ----
-            double rad = ColorUtil.Clamp(s.CornerRadius, 0, 200);
+            // ---- background, shape, border, picture and the extras on the background ----
             double padH = ColorUtil.Clamp(s.PaddingH, 0, 200);
             double padV = ColorUtil.Clamp(s.PaddingV, 0, 200);
             double bt = ColorUtil.Clamp(s.BorderThickness, 0, 20);
-            CornerRadius = new CornerRadius(rad);
-            Padding = new Thickness(padH, padV, padH, padV);
-            BorderThickness = new Thickness(bt);
-            BorderBrush = new SolidColorBrush(ColorUtil.Parse(s.BorderColor, Colors.White));
+            double tl, tr, br, bl;
+            if (s.PerCorner)
+            {
+                tl = ColorUtil.Clamp(s.CornerTL, 0, 200);
+                tr = ColorUtil.Clamp(s.CornerTR, 0, 200);
+                br = ColorUtil.Clamp(s.CornerBR, 0, 200);
+                bl = ColorUtil.Clamp(s.CornerBL, 0, 200);
+            }
+            else
+            {
+                tl = ColorUtil.Clamp(s.CornerRadius, 0, 200);
+                tr = tl; br = tl; bl = tl;
+            }
+            PillShape shape = s.Shape;
+            bool custom = shape != PillShape.Rounded || s.BorderLineStyle != BorderLine.Solid;
+            Brush fill = MakeFill(s, AnimOn);
+            Brush edge = MakeBorderBrush(s);
+            Thickness over;
 
-            // ---- picture behind the numbers ----
+            if (!custom)
+            {
+                // a plain rounded box: the Border draws everything itself
+                Background = fill ?? Brushes.Transparent;
+                CornerRadius = new CornerRadius(tl, tr, br, bl);
+                BorderThickness = new Thickness(bt);
+                BorderBrush = edge;
+                Padding = new Thickness(padH, padV, padH, padV);
+                over = new Thickness(-padH, -padV, -padH, -padV);
+                _shape.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                // another shape or border style: a shape layer draws the fill and the border
+                Background = Brushes.Transparent;
+                CornerRadius = new CornerRadius(0);
+                BorderThickness = new Thickness(0);
+                BorderBrush = null;
+                Padding = new Thickness(padH + bt, padV + bt, padH + bt, padV + bt);
+                over = new Thickness(-(padH + bt), -(padV + bt), -(padH + bt), -(padV + bt));
+                _shape.Margin = over;
+                _shape.Set(shape, tl, tr, br, bl, 0, fill, bt > 0 ? edge : null, bt, s.BorderLineStyle);
+                _shape.Visibility = Visibility.Visible;
+            }
+
+            // the layers on top of the fill sit inside the border
+            double inset = custom ? bt : 0;
+            double[] inner = { Math.Max(0, tl - bt), Math.Max(0, tr - bt), Math.Max(0, br - bt), Math.Max(0, bl - bt) };
+
+            // picture behind the numbers (and an optional colour over it)
+            Brush picFill = null;
+            Brush tintFill = null;
             BitmapImage back = LoadImage(s.BackgroundImagePath, 900);
             if (back != null)
             {
@@ -809,17 +1268,26 @@ namespace BetterClock
                 ib.Opacity = ColorUtil.Clamp(s.BackgroundImageOpacity, 0, 100) / 100.0;
                 ib.Stretch = s.BackgroundImageFit == ImageFit.Fit ? Stretch.Uniform
                            : (s.BackgroundImageFit == ImageFit.Stretch ? Stretch.Fill : Stretch.UniformToFill);
-                _imgLayer.Background = ib;
-                _imgLayer.Margin = new Thickness(-padH, -padV, -padH, -padV);
-                double inner = Math.Max(0, rad - bt);
-                _imgLayer.CornerRadius = new CornerRadius(inner);
-                _imgLayer.Visibility = Visibility.Visible;
+                double zoom = ColorUtil.Clamp(s.BackgroundImageZoom, 50, 500) / 100.0;
+                if (Math.Abs(zoom - 1) > 0.001 || s.BackgroundImageX != 0 || s.BackgroundImageY != 0)
+                {
+                    var tg = new TransformGroup();
+                    tg.Children.Add(new ScaleTransform(zoom, zoom, 0.5, 0.5));
+                    tg.Children.Add(new TranslateTransform(ColorUtil.Clamp(s.BackgroundImageX, -100, 100) / 100.0,
+                                                           ColorUtil.Clamp(s.BackgroundImageY, -100, 100) / 100.0));
+                    ib.RelativeTransform = tg;
+                }
+                picFill = ib;
+                if (!string.IsNullOrEmpty(s.BackgroundImageTint) && s.BackgroundImageTintAmount > 0)
+                    tintFill = new SolidColorBrush(ColorUtil.WithAlpha(ColorUtil.Parse(s.BackgroundImageTint, Colors.Black), s.BackgroundImageTintAmount));
             }
-            else
-            {
-                _imgLayer.Background = null;
-                _imgLayer.Visibility = Visibility.Collapsed;
-            }
+            Lay(_picLayer, picFill, shape, inner, inset, over);
+            Lay(_tintLayer, tintFill, shape, inner, inset, over);
+
+            // texture, inner glow and glass shine
+            Lay(_texLayer, MakeTexture(s), shape, inner, inset, over);
+            Lay(_innerLayer, MakeInnerGlow(s), shape, inner, inset, over);
+            Lay(_glassLayer, MakeGlass(s), shape, inner, inset, over);
 
             // ---- shadow / glow around the pill ----
             ApplyEffect();
@@ -830,6 +1298,8 @@ namespace BetterClock
             Margin = new Thickness(OuterMargin);
 
             if (_moveOutline.Visibility == Visibility.Visible) SetMoveOutline(true);
+            ApplyBreatheSize();
+            ApplyWarn();
             Refresh();
             UpdateProgress();
         }

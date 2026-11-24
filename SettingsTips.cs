@@ -7,10 +7,27 @@ namespace BetterClock
     {
         private static readonly Dictionary<string, string> Map = new Dictionary<string, string>();
 
+        private static readonly string[] StateKeys = { "Running", "Paused", "Low", "Danger", "Finished", "Overtime", "Target", "Night" };
+
         public static string Get(string field)
         {
             string tip;
-            return Map.TryGetValue(field, out tip) ? tip : null;
+            if (Map.TryGetValue(field, out tip)) return tip;
+            // the look of a state: Running, Paused, Low, Danger, Finished, Overtime, Target, Night
+            foreach (string key in StateKeys)
+            {
+                if (field.Length > key.Length && field.StartsWith(key))
+                {
+                    string rest = field.Substring(key.Length);
+                    if (rest == "Background") return "A different background colour for this state. Empty = unchanged.";
+                    if (rest == "BorderColor") return "A different border colour for this state. Empty = unchanged.";
+                    if (rest == "BorderWidth") return "A different border thickness for this state.";
+                    if (rest == "GlowColor") return "A different glow colour for this state. Empty = unchanged.";
+                    if (rest == "GlowSize") return "A different glow size for this state. 0 turns the glow off.";
+                    if (rest == "Scale") return "A different size of the whole overlay for this state.";
+                }
+            }
+            return null;
         }
 
         private static void T(string field, string tip) { Map[field] = tip; }
@@ -31,6 +48,28 @@ namespace BetterClock
             T("FontSize", "How big the numbers are.");
             T("FontBold", "Make the numbers bold.");
             T("FontItalic", "Slant the numbers.");
+            // ---- animation and states (1.4.7) ----
+            T("AnimationsOn", "Turn every animation of this overlay off (it just appears and changes).");
+            T("AnimSpeed", "How fast the animations play. 200 = twice as fast, 50 = half speed.");
+            T("AnimEasing", "Smooth slows down at the end, Linear is steady, Snappy is quick then soft, Bouncy overshoots a little.");
+            T("HideAnimation", "How it disappears. Auto follows the appear animation.");
+            T("DigitAnimation", "What the numbers do when they change.");
+            T("Breathe", "An idle animation: the glow or the numbers slowly grow and shrink.");
+            T("BreatheColor", "Colour of the breathing glow.");
+            T("BreatheAmount", "How big the breathing glow gets.");
+            T("BreatheSize", "How much the numbers grow when breathing.");
+            T("BreatheSeconds", "How long one breath takes.");
+            T("WarnAnimation", "Shake or flash the overlay while the countdown is almost out.");
+            T("ColorFade", "Glide from one state colour to the next instead of switching at once.");
+            T("ColorFadeMs", "How long the colour glide takes.");
+            T("AnimatedGradient", "Slowly turn the gradient round (needs the Gradient background style).");
+            T("GradientSeconds", "How long one full turn takes.");
+            T("PulseSpeed", "How long one pulse beat takes.");
+            T("PulseSize", "How big the pulsing glow gets.");
+            T("NightOn", "Use a different look at night.");
+            T("NightFrom", "The hour night starts (0 to 23).");
+            T("NightTo", "The hour night ends (0 to 23).");
+
             T("TextShadow", "A shadow behind the numbers so they stay readable.");
 
             // ---- text effects (1.4.5) ----
@@ -81,7 +120,39 @@ namespace BetterClock
             T("LabelColor", "Colour of the label.");
 
             // ---- background and shape ----
-            T("BackgroundStyle", "Solid colour, a gradient between two colours, or no background.");
+            T("BackgroundStyle", "Solid colour, a gradient, a round (radial) gradient, or no background.");
+
+            // ---- background and shape (1.4.6) ----
+            T("BackgroundColor3", "A third colour in the middle of the gradient. Empty = two colours.");
+            T("Shape", "The outline of the overlay: Rounded box, Circle, Hexagon or Slanted.");
+            T("PerCorner", "Give every corner its own roundness.");
+            T("CornerTL", "Roundness of the top left corner.");
+            T("CornerTR", "Roundness of the top right corner.");
+            T("CornerBR", "Roundness of the bottom right corner.");
+            T("CornerBL", "Roundness of the bottom left corner.");
+            T("BorderLineStyle", "Solid, Dashed, Dotted or Double line.");
+            T("BorderOpacity", "How see-through the border is. The background has its own opacity.");
+            T("BorderGradient", "Fade the border from its colour to a second colour.");
+            T("BorderColor2", "The colour the border fades to.");
+            T("BorderGradientAngle", "Direction of the border fade.");
+            T("InnerGlowSize", "A soft glow along the inside edge. 0 = off.");
+            T("InnerGlowColor", "Colour of the inner glow.");
+            T("InnerGlowOpacity", "How strong the inner glow is.");
+            T("Glass", "A shine on the top half, like glass.");
+            T("GlassStrength", "How bright the glass shine is.");
+            T("Texture", "A pattern over the background: noise, stripes, dots or a grid.");
+            T("TextureColor", "Colour of the pattern.");
+            T("TextureOpacity", "How strong the pattern is.");
+            T("TextureSize", "Size of the pattern.");
+            T("ShadowColor", "Colour of the glow or shadow around the overlay.");
+            T("ShadowOffsetX", "Move the shadow left (minus) or right (plus).");
+            T("ShadowOffsetY", "Move the shadow up (minus) or down (plus).");
+            T("ShadowOpacity", "How strong the glow or shadow is.");
+            T("BackgroundImageZoom", "Zoom the picture in or out. 100 = normal.");
+            T("BackgroundImageX", "Move the picture left (minus) or right (plus).");
+            T("BackgroundImageY", "Move the picture up (minus) or down (plus).");
+            T("BackgroundImageTint", "A colour laid over the picture. Empty = none.");
+            T("BackgroundImageTintAmount", "How strong the tint is.");
             T("BackgroundColor", "The background colour.");
             T("BackgroundColor2", "The second colour for a gradient.");
             T("GradientAngle", "The direction of the gradient in degrees.");
@@ -156,6 +227,15 @@ namespace BetterClock
             T("IconRotation", "Turn the icon (degrees).");
             T("ProgressColor", "Colour of the ring or bar. Empty = follows the state colour.");
             T("ProgressOpacity", "How see-through the ring or bar is.");
+            T("Layout", "Stack the parts top to bottom, or put them side by side.");
+            T("PartAlign", "Line the parts up to the left, centre or right (top, centre or bottom when side by side).");
+            T("FixedWidth", "A set width for the overlay in pixels. 0 = it fits its content.");
+            T("FixedHeight", "A set height for the overlay in pixels. 0 = it fits its content.");
+            T("MinWidthPx", "The overlay never gets narrower than this, so it does not jump about when numbers change.");
+            T("SyncLooks", "Anything you change on one overlay is copied to the other two after a moment.");
+            T("CompactSettings", "Hides the grey help lines and tightens the rows so more fits on screen.");
+            T("SnapGrid", "When you drop an overlay, its position snaps to a grid of this size. 0 = off.");
+            T("SnapEdges", "When you drop an overlay near a screen edge or the centre, it snaps to it.");
             T("PartSpacing", "Space between the parts, in pixels.");
             T("PartOrder", "The order the parts are stacked in.");
 

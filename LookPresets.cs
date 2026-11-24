@@ -111,8 +111,95 @@ namespace BetterClock
 
         public static readonly string[] BuiltInNames =
         {
-            "Default", "Neon", "Minimal", "Glass", "Retro green", "Scoreboard", "Gold", "Ice", "Sunset", "High contrast"
+            "Default", "Neon", "Minimal", "Glass", "Retro green", "Scoreboard", "Gold", "Ice", "Sunset", "High contrast",
+            "Cyberpunk", "Forest", "Ocean", "Lava", "Candy", "Midnight", "Mono", "Amber terminal",
+            "Pastel", "Royal", "Steel", "Matrix", "Arcade", "Paper", "Aurora"
         };
+
+        // Saves the look of all three overlays to a file anywhere (to send to a friend).
+        public static bool ExportToFile(string path)
+        {
+            try
+            {
+                var holder = new AppSettings();
+                holder.Clock.CopyFrom(S.Clock, false);
+                holder.Timer.CopyFrom(S.Timer, false);
+                holder.Countdown.CopyFrom(S.Countdown, false);
+                holder.SaveTo(path);
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        // Loads a look file from anywhere onto the three overlays.
+        public static bool ImportFromFile(string path)
+        {
+            try
+            {
+                if (!File.Exists(path)) return false;
+                AppSettings loaded = AppSettings.LoadFrom(path);
+                S.Clock.CopyFrom(loaded.Clock, true);
+                S.Timer.CopyFrom(loaded.Timer, true);
+                S.Countdown.CopyFrom(loaded.Countdown, true);
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        // A random look (colours, shape, font style, border) on all three overlays.
+        public static void Randomise()
+        {
+            var r = new Random();
+            var s = new ModeStyle();
+            float hue = (float)r.NextDouble();
+            s.BackgroundStyle = r.Next(3) == 0 ? BackgroundStyle.Solid : (r.Next(2) == 0 ? BackgroundStyle.Gradient : BackgroundStyle.Radial);
+            s.BackgroundColor = Hsv(hue, 0.7, 0.18);
+            s.BackgroundColor2 = Hsv((hue + 0.12f) % 1f, 0.7, 0.45);
+            s.GradientAngle = r.Next(0, 360);
+            s.BackgroundOpacity = 70 + r.Next(30);
+            s.TextColor = Hsv((hue + 0.5f) % 1f, 0.15 + r.NextDouble() * 0.4, 1.0);
+            s.RunningColor = Hsv((hue + 0.33f) % 1f, 0.6, 1.0);
+            s.PausedColor = Hsv((hue + 0.15f) % 1f, 0.7, 1.0);
+            s.FinishedColor = Hsv(0.0f, 0.8, 1.0);
+            s.BorderColor = Hsv((hue + 0.5f) % 1f, 0.8, 1.0);
+            s.BorderThickness = r.Next(0, 5);
+            s.CornerRadius = r.Next(0, 40);
+            PillShape[] shapes = { PillShape.Rounded, PillShape.Rounded, PillShape.Rounded, PillShape.Slanted, PillShape.Hexagon };
+            s.Shape = shapes[r.Next(shapes.Length)];
+            DigitStyle[] digits = { DigitStyle.Normal, DigitStyle.Normal, DigitStyle.Led, DigitStyle.Terminal };
+            s.DigitStyle = digits[r.Next(digits.Length)];
+            s.ShadowEnabled = r.Next(2) == 0;
+            s.ShadowColor = s.BorderColor;
+            s.ShadowBlur = 10 + r.Next(25);
+            S.Clock.CopyFrom(s, true);
+            S.Timer.CopyFrom(s, true);
+            S.Countdown.CopyFrom(s, true);
+        }
+
+        private static string Hsv(float h, double sat, double val)
+        {
+            double hh = h * 6.0;
+            int i = (int)Math.Floor(hh) % 6;
+            double f = hh - Math.Floor(hh);
+            double p = val * (1 - sat), q = val * (1 - f * sat), t = val * (1 - (1 - f) * sat);
+            double rr, gg, bb;
+            switch (i)
+            {
+                case 0: rr = val; gg = t; bb = p; break;
+                case 1: rr = q; gg = val; bb = p; break;
+                case 2: rr = p; gg = val; bb = t; break;
+                case 3: rr = p; gg = q; bb = val; break;
+                case 4: rr = t; gg = p; bb = val; break;
+                default: rr = val; gg = p; bb = q; break;
+            }
+            return string.Format("#{0:X2}{1:X2}{2:X2}", (int)(rr * 255), (int)(gg * 255), (int)(bb * 255));
+        }
 
         public static void ApplyBuiltIn(string name)
         {
@@ -121,8 +208,10 @@ namespace BetterClock
             S.Countdown.CopyFrom(BuiltIn(name), true);
         }
 
-        private static ModeStyle BuiltIn(string name)
+        public static ModeStyle BuiltIn(string name)
         {
+            ModeStyle more = MoreThemes.Build(name);
+            if (more != null) return more;
             var s = new ModeStyle();   // starts from the default look
             switch (name)
             {

@@ -120,9 +120,34 @@ namespace BetterClock
             }
             if (target == null) return;
 
+            int x = px - target.Left;
+            int y = py - target.Top;
+            int pw = (int)Math.Round(ActualWidth * scale) - 2 * om;
+            int ph = (int)Math.Round(ActualHeight * scale) - 2 * om;
+            AppSettings cfg = AppHost.Settings;
+            if (cfg.SnapGrid > 1)
+            {
+                x = (int)Math.Round(x / (double)cfg.SnapGrid) * cfg.SnapGrid;
+                y = (int)Math.Round(y / (double)cfg.SnapGrid) * cfg.SnapGrid;
+            }
+            if (cfg.SnapEdges)
+            {
+                int near = (int)Math.Round(12 * scale);
+                int[] xs = { 0, (target.Width - pw) / 2, target.Width - pw };
+                int[] ys = { 0, (target.Height - ph) / 2, target.Height - ph };
+                for (int i = 0; i < 3; i++)
+                {
+                    if (Math.Abs(x - xs[i]) <= near) { x = xs[i]; break; }
+                }
+                for (int i = 0; i < 3; i++)
+                {
+                    if (Math.Abs(y - ys[i]) <= near) { y = ys[i]; break; }
+                }
+            }
             st.UseCustomPosition = true;
-            st.CustomX = Math.Max(0, px - target.Left);
-            st.CustomY = Math.Max(0, py - target.Top);
+            st.CustomX = Math.Max(0, x);
+            st.CustomY = Math.Max(0, y);
+            Reposition();
             AppHost.RaiseMoved(_mode);
         }
 
@@ -148,8 +173,29 @@ namespace BetterClock
         {
             get
             {
+                if (!St.AnimationsOn) return TimeSpan.Zero;
                 if (St.ShowAnimation == ShowAnimation.None) return TimeSpan.Zero;
-                return TimeSpan.FromMilliseconds(ColorUtil.Clamp(St.FadeMs, 0, 2000));
+                return TimeSpan.FromMilliseconds(ColorUtil.Clamp(St.FadeMs, 0, 2000) * 100.0 / ColorUtil.Clamp(St.AnimSpeed, 25, 400));
+            }
+        }
+
+        // How it leaves: "Auto" follows the show animation (no show animation = it just disappears).
+        private HideAnim HideKind
+        {
+            get
+            {
+                HideAnim h = St.HideAnimation;
+                if (h == HideAnim.Auto) return St.ShowAnimation == ShowAnimation.None ? HideAnim.None : HideAnim.Fade;
+                return h;
+            }
+        }
+
+        private TimeSpan HideTime
+        {
+            get
+            {
+                if (!St.AnimationsOn || HideKind == HideAnim.None) return TimeSpan.Zero;
+                return TimeSpan.FromMilliseconds(ColorUtil.Clamp(St.FadeMs, 0, 2000) * 100.0 / ColorUtil.Clamp(St.AnimSpeed, 25, 400));
             }
         }
 
@@ -205,8 +251,9 @@ namespace BetterClock
             _wanted = false;
             if (!IsVisible) return;
             int version = ++_showVersion;
+            TimeSpan hideTime = HideTime;
 
-            if (FadeTime.TotalMilliseconds < 1)
+            if (hideTime.TotalMilliseconds < 1)
             {
                 _keepOnTop.Stop();
                 BeginAnimation(OpacityProperty, null);
@@ -215,7 +262,8 @@ namespace BetterClock
                 return;
             }
 
-            var fade = new DoubleAnimation(Opacity, 0, FadeTime);
+            _view.PlayHide(HideKind, St.Position, hideTime);
+            var fade = new DoubleAnimation(Opacity, 0, hideTime);
             fade.Completed += delegate
             {
                 // If it was shown again during the fade, leave it alone.

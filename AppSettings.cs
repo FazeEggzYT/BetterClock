@@ -9,9 +9,9 @@ using System.Reflection;
 
 namespace BetterClock
 {
-    public enum BackgroundStyle { Solid, Gradient, None }
+    public enum BackgroundStyle { Solid, Gradient, None, Radial }
     public enum ColorThemeMode { Dark, Light, System }
-    public enum ShowAnimation { Fade, Slide, Pop, None }
+    public enum ShowAnimation { Fade, Slide, Pop, None, Zoom, Drop, Bounce }
     public enum DigitStyle { Normal, Flip, Led, Terminal, Analog }
     public enum OverlayIcon { None, Clock, Hourglass, Stopwatch, Bell, Star, Bolt, Flag, Trophy, Skull, Heart, Gamepad, Custom }
     public enum ImageFit { Cover, Fit, Stretch }
@@ -206,6 +206,10 @@ namespace BetterClock
         public int UiScale = 100;            // percent
         public int WindowWidth = 1120;       // the settings window remembers its size
         public int WindowHeight = 800;
+        public bool SyncLooks = false;       // an edit of one overlay's look is copied to the other two
+        public bool CompactSettings = false; // hides the help lines in the settings
+        public int SnapGrid = 0;             // dragging snaps to a grid of this many pixels (0 = off)
+        public bool SnapEdges = false;       // dragging snaps to the screen edges and centre
         public bool StartWithWindows = false;
         public bool ShowSplash = true;
         public bool ShowStartupMessage = true;
@@ -385,6 +389,10 @@ namespace BetterClock
         {
             File.WriteAllLines(path, ToLines().ToArray());
         }
+
+        // Used by share codes: a value as text and back.
+        public static string FieldText(object v) { return Text(v); }
+        public static object FieldParse(Type t, string v) { return Parse(t, v); }
 
         private List<string> ToLines()
         {

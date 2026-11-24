@@ -16,7 +16,7 @@ namespace BetterClock
 {
     public partial class SettingsWindow : Window
     {
-        private enum PreviewMode { Clock, TimerRunning, TimerPaused, Countdown, Finished }
+        private enum PreviewMode { Clock, TimerRunning, TimerPaused, Countdown, Finished, TimerTarget, CountdownRunning, CountdownPaused, CountdownLow, CountdownDanger, CountdownOvertime }
 
         private static SettingsWindow _instance;
 
@@ -40,6 +40,7 @@ namespace BetterClock
         private TextBlock _hotkeyStatus;
         private HotkeyDef _capturing;
         private PreviewMode _previewMode = PreviewMode.Clock;
+        private bool _previewNight;
         private bool _loading = true;
 
         private static readonly string[] Presets =
@@ -155,13 +156,15 @@ namespace BetterClock
             ApplyAccentBar();
 
             _saveTimer.Interval = TimeSpan.FromMilliseconds(600);
-            _saveTimer.Tick += delegate { _saveTimer.Stop(); AppHost.SaveSettings(); };
+            _saveTimer.Tick += delegate { _saveTimer.Stop(); AfterEdit(); AppHost.SaveSettings(); };
 
             _previewTimer.Interval = TimeSpan.FromMilliseconds(500);
             _previewTimer.Tick += delegate { UpdatePreview(); };
             _previewTimer.Start();
 
             PreviewKeyDown += OnCaptureKey;
+            PreviewKeyDown += OnHistoryKey;
+            PushHistory();
 
             // remember the window size
             SizeChanged += delegate
@@ -326,8 +329,68 @@ namespace BetterClock
         private static OverlayMode ModeOf(PreviewMode m)
         {
             if (m == PreviewMode.Clock) return OverlayMode.Clock;
-            if (m == PreviewMode.TimerRunning || m == PreviewMode.TimerPaused) return OverlayMode.Timer;
+            if (m == PreviewMode.TimerRunning || m == PreviewMode.TimerPaused || m == PreviewMode.TimerTarget) return OverlayMode.Timer;
             return OverlayMode.Countdown;
+        }
+
+        // The state each overlay is shown in for the preview.
+        private OverlayRole PreviewRoleFor(OverlayMode m)
+        {
+            if (m == OverlayMode.Clock) return OverlayRole.Normal;
+            if (m == OverlayMode.Timer)
+            {
+                if (_previewMode == PreviewMode.TimerPaused) return OverlayRole.Paused;
+                if (_previewMode == PreviewMode.TimerTarget) return OverlayRole.Target;
+                return OverlayRole.Running;
+            }
+            switch (_previewMode)
+            {
+                case PreviewMode.Finished: return OverlayRole.Finished;
+                case PreviewMode.CountdownRunning: return OverlayRole.Running;
+                case PreviewMode.CountdownPaused: return OverlayRole.Paused;
+                case PreviewMode.CountdownLow: return OverlayRole.Warning;
+                case PreviewMode.CountdownDanger: return OverlayRole.Danger;
+                case PreviewMode.CountdownOvertime: return OverlayRole.Overtime;
+                default: return OverlayRole.Normal;
+            }
+        }
+
+        private string PreviewTextFor(OverlayMode m, string clockText, string timerText, string countText)
+        {
+            if (m == OverlayMode.Clock) return clockText;
+            if (m == OverlayMode.Timer) return timerText;
+            switch (_previewMode)
+            {
+                case PreviewMode.Finished: return "00:00";
+                case PreviewMode.CountdownOvertime: return "+00:12";
+                case PreviewMode.CountdownDanger: return "00:05";
+                case PreviewMode.CountdownLow: return "00:25";
+                default: return countText;
+            }
+        }
+
+        // Called by the "Preview this state" buttons in the settings.
+        private void ShowPreviewState(OverlayMode mode, string key)
+        {
+            _previewNight = key == "Night";
+            if (mode == OverlayMode.Clock) _previewMode = PreviewMode.Clock;
+            else if (mode == OverlayMode.Timer)
+            {
+                if (key == "Paused") _previewMode = PreviewMode.TimerPaused;
+                else if (key == "Target") _previewMode = PreviewMode.TimerTarget;
+                else _previewMode = PreviewMode.TimerRunning;
+            }
+            else
+            {
+                if (key == "Running") _previewMode = PreviewMode.CountdownRunning;
+                else if (key == "Paused") _previewMode = PreviewMode.CountdownPaused;
+                else if (key == "Low") _previewMode = PreviewMode.CountdownLow;
+                else if (key == "Danger") _previewMode = PreviewMode.CountdownDanger;
+                else if (key == "Finished") _previewMode = PreviewMode.Finished;
+                else if (key == "Overtime") _previewMode = PreviewMode.CountdownOvertime;
+                else _previewMode = PreviewMode.Countdown;
+            }
+            UpdatePreview();
         }
 
         private UIElement BuildPreviewPanel()
@@ -387,7 +450,11 @@ namespace BetterClock
             states.Children.Add(StateButton("Timer", PreviewMode.TimerRunning));
             states.Children.Add(StateButton("Paused", PreviewMode.TimerPaused));
             states.Children.Add(StateButton("Countdown", PreviewMode.Countdown));
+            states.Children.Add(StateButton("Low time", PreviewMode.CountdownLow));
+            states.Children.Add(StateButton("Almost out", PreviewMode.CountdownDanger));
             states.Children.Add(StateButton("At zero", PreviewMode.Finished));
+            states.Children.Add(StateButton("Overtime", PreviewMode.CountdownOvertime));
+            states.Children.Add(StateButton("Target", PreviewMode.TimerTarget));
             sp.Children.Add(states);
 
             // ---- close-up ----
@@ -425,7 +492,7 @@ namespace BetterClock
             b.Content = text;
             b.Padding = new Thickness(10, 4, 10, 4);
             b.Margin = new Thickness(0, 0, 6, 6);
-            b.Click += delegate { _previewMode = mode; UpdatePreview(); };
+            b.Click += delegate { _previewMode = mode; _previewNight = false; UpdatePreview(); };
             return b;
         }
 
@@ -439,7 +506,13 @@ namespace BetterClock
         // How full the progress ring / bar looks in the preview.
         private double PreviewProgress(OverlayMode m)
         {
-            if (m == OverlayMode.Countdown) return _previewMode == PreviewMode.Finished ? 0 : 0.65;
+            if (m == OverlayMode.Countdown)
+            {
+                if (_previewMode == PreviewMode.Finished || _previewMode == PreviewMode.CountdownOvertime) return 0;
+                if (_previewMode == PreviewMode.CountdownDanger) return 0.08;
+                if (_previewMode == PreviewMode.CountdownLow) return 0.25;
+                return 0.65;
+            }
             if (m == OverlayMode.Timer && S.TimerTargetEnabled) return 0.4;
             return -1;
         }
@@ -456,24 +529,20 @@ namespace BetterClock
             // close-up
             ModeStyle zs = S.StyleFor(focus);
             _zoomView.Kind = focus;
+            _zoomView.ForceNight = _previewNight;
             _zoomView.Apply(zs);
             _zoomView.Margin = new Thickness(_zoomView.OuterMargin);
             _zoomView.SetProgress(PreviewProgress(focus));
             _zoomView.SetInfo(PreviewInfo(focus));
-            switch (_previewMode)
-            {
-                case PreviewMode.Clock: _zoomView.SetText(clockText); _zoomView.SetRole(OverlayRole.Normal); break;
-                case PreviewMode.TimerRunning: _zoomView.SetText(timerText); _zoomView.SetRole(OverlayRole.Running); break;
-                case PreviewMode.TimerPaused: _zoomView.SetText(timerText); _zoomView.SetRole(OverlayRole.Paused); break;
-                case PreviewMode.Countdown: _zoomView.SetText(countText); _zoomView.SetRole(OverlayRole.Normal); break;
-                default: _zoomView.SetText("00:00"); _zoomView.SetRole(OverlayRole.Finished); break;
-            }
+            _zoomView.SetText(PreviewTextFor(focus, clockText, timerText, countText));
+            _zoomView.SetRole(PreviewRoleFor(focus));
 
             // mini screen
             foreach (KeyValuePair<OverlayMode, OverlayView> kv in _mapViews)
             {
                 ModeStyle st = S.StyleFor(kv.Key);
                 OverlayView v = kv.Value;
+                v.ForceNight = _previewNight;
                 v.Apply(st);
                 int pos = (int)st.Position;
                 int col = pos % 3;
@@ -491,18 +560,8 @@ namespace BetterClock
                 v.SetProgress(PreviewProgress(kv.Key));
                 v.SetInfo(PreviewInfo(kv.Key));
 
-                if (kv.Key == OverlayMode.Clock) { v.SetText(clockText); v.SetRole(OverlayRole.Normal); }
-                else if (kv.Key == OverlayMode.Timer)
-                {
-                    v.SetText(timerText);
-                    v.SetRole(_previewMode == PreviewMode.TimerPaused ? OverlayRole.Paused : OverlayRole.Running);
-                }
-                else
-                {
-                    bool zero = _previewMode == PreviewMode.Finished;
-                    v.SetText(zero ? "00:00" : countText);
-                    v.SetRole(zero ? OverlayRole.Finished : OverlayRole.Normal);
-                }
+                v.SetText(PreviewTextFor(kv.Key, clockText, timerText, countText));
+                v.SetRole(PreviewRoleFor(kv.Key));
             }
         }
 
@@ -537,6 +596,7 @@ namespace BetterClock
             t.FontSize = 12;
             t.Margin = new Thickness(0, 2, 0, 6);
             t.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
+            if (S.CompactSettings) t.Visibility = Visibility.Collapsed;
             return t;
         }
 
@@ -558,6 +618,7 @@ namespace BetterClock
             page.Children.Add(Heading(title, 22));
             var sub = Hint(subtitle);
             sub.Margin = new Thickness(0, 2, 0, 16);
+            sub.Visibility = Visibility.Visible;
             page.Children.Add(sub);
 
             var scroll = new ScrollViewer();
@@ -575,7 +636,7 @@ namespace BetterClock
         private Grid AddRow(StackPanel p, string label)
         {
             var g = new Grid();
-            g.Margin = new Thickness(0, 4, 0, 4);
+            g.Margin = S.CompactSettings ? new Thickness(0, 1, 0, 1) : new Thickness(0, 4, 0, 4);
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(170) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             if (label != null)

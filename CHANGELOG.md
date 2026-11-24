@@ -1,5 +1,44 @@
 # Changelog
 
+## v1.4.8
+- New: share your look as a short code, or as a file you can import.
+- New: Randomise button for a surprise look.
+- New: 15 more themes (25 in total).
+- New: Undo and Redo for your look (buttons or Ctrl+Z / Ctrl+Y).
+- New: "Same look on all three overlays" option.
+- New: stack the parts side by side, and align them left, centre or right.
+- New: fixed width, fixed height and a minimum width.
+- New: snap to a grid and to the screen edges when you drag an overlay.
+- New: compact settings that hide the help lines.
+
+## v1.4.7
+- New: the numbers can fade, slide, flip or pop when they change.
+- New: idle breathing (the glow or the numbers slowly grow and shrink).
+- New: countdown pulse speed and size.
+- New: more appear animations: zoom, drop and bounce.
+- New: choose how it disappears (fade, slide, shrink or none).
+- New: animation speed and easing.
+- New: shake or flash when a countdown is almost out.
+- New: colours glide from one state to the next.
+- New: animated (turning) gradient background.
+- New: switch animations off for one overlay.
+- New: every state (running, paused, low time, almost out, zero, overtime, target reached) can have its own background, border, glow and size.
+- New: a night look that switches on by the clock.
+- New: preview buttons for every state, plus copy and reset for each state.
+
+## v1.4.6
+- New: gradient with a third colour in the middle.
+- New: round (radial) gradient background.
+- New: a different roundness for each corner.
+- New: shapes: circle, hexagon and slanted (plus the rounded box and pill).
+- New: gradient border and border opacity.
+- New: border lines: solid, dashed, dotted and double.
+- New: inner glow along the inside edge.
+- New: glass shine on the top half.
+- New: texture over the background: noise, stripes, dots or a grid.
+- New: colour and position for the shadow around the overlay.
+- New: picture zoom, position and a colour tint.
+
 ## v1.4.5
 - New: outline around the numbers (colour and thickness).
 - New: gradient colour on the numbers.

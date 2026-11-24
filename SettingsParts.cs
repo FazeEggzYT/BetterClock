@@ -125,6 +125,8 @@ namespace BetterClock
             // ---- order and spacing ----
             var order = new AnimatedSection("Order and spacing of the parts", false);
             AddSlider(order.Body, st, "Space between parts", "PartSpacing", 0, 40, 1, " px", null);
+            AddEnumCombo(order.Body, st, "Direction", "Layout", typeof(LayoutDirection), null);
+            AddEnumCombo(order.Body, st, "Align the parts", "PartAlign", typeof(PartAlignment), null);
             var list = new StackPanel();
             order.Body.Children.Add(list);
             FillOrderList(list, st, mode);
